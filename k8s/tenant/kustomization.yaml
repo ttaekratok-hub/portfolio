@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The portfolio's sandbox on a shared cluster: namespace + resource cap,
+# Flux's limited account, and network guardrails. Owned by the cluster admin.
+# CI's kind cluster applies the same files, so it tests under the Pi's rules.
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - guardrails.yaml

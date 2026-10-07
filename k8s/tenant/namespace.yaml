@@ -1,0 +1,29 @@
+# The portfolio's namespace is created by the cluster admin (you), not by
+# Flux's portfolio Kustomization, which may only touch what's inside it.
+# "restricted" Pod Security rejects root, privileged and hostPath pods here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: portfolio
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# A cap on what the namespace can use, so a bad commit can't starve the
+# mail server and other apps on the same Pi. The site needs ~3 small pods
+# during a rolling update.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: portfolio
+  namespace: portfolio
+spec:
+  hard:
+    pods: "6"
+    requests.cpu: "1"
+    requests.memory: 512Mi
+    limits.memory: 512Mi
+    persistentvolumeclaims: "0"
+    services: "2"
+    services.nodeports: "1"
+    services.loadbalancers: "0"

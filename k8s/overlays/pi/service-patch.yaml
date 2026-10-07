@@ -1,8 +1,10 @@
-# k3s's built-in ServiceLB exposes a LoadBalancer Service on the node itself,
-# on any port (NodePorts are limited to 30000-32767).
+# ServiceLB is disabled on the Pi's k3s, so expose the Service as a NodePort
+# (allowed range 30000-32767). cloudflared runs in Docker on a bridge network,
+# where "localhost" is the container itself, so the tunnel reaches this port
+# through the Pi's LAN IP instead.
 - op: replace
   path: /spec/type
-  value: LoadBalancer
-- op: replace
-  path: /spec/ports/0/port
-  value: 57738
+  value: NodePort
+- op: add
+  path: /spec/ports/0/nodePort
+  value: 30738

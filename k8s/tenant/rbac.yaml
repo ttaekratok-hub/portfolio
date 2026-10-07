@@ -1,0 +1,44 @@
+# Flux applies this repo as portfolio-reconciler instead of its own
+# cluster-admin identity. The Role lists exactly what the site needs and
+# nothing more. Built-in roles like "edit" are too broad here: they also
+# allow creating Flux objects, which Flux would then run as cluster-admin.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portfolio-reconciler
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: portfolio-reconciler
+  namespace: portfolio
+rules:
+  # What Flux creates, updates and prunes (k8s/overlays/pi).
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Read-only, so `wait: true` can follow the rollout's health.
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: portfolio-reconciler
+  namespace: portfolio
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: portfolio-reconciler
+subjects:
+  - kind: ServiceAccount
+    name: portfolio-reconciler
+    namespace: flux-system

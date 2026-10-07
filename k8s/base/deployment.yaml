@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          # CI overrides the tag with the commit SHA it just tested (see ci-cd.yml).
+          # On the deploy branch, CI pins this to the tested commit's SHA.
           image: ghcr.io/ttaekratok-hub/portfolio:latest
           ports:
             - name: http
