@@ -58,6 +58,14 @@ jobs:
           for i in $(seq 1 10); do curl -fsS localhost:8080/healthz && break; sleep 1; done
           curl -fsS localhost:8080/ | grep -q "<title>"
           curl -fsS localhost:8080/version.json | grep -q "${{ github.sha }}"
+          # Security headers on every response, version.json included.
+          for path in / /version.json; do
+            headers=$(curl -fsSI "localhost:8080$path")
+            for h in Strict-Transport-Security Content-Security-Policy X-Content-Type-Options; do
+              grep -qi "^$h:" <<<"$headers" || { echo "missing $h on $path"; exit 1; }
+            done
+          done
+          curl -fsS localhost:8080/.well-known/security.txt | grep -q "^Contact:"
           docker rm -f web
       - name: Save image for later jobs
         run: docker save portfolio:ci -o image.tar
