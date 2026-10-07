@@ -1,7 +1,7 @@
 name: CI/CD
 
 # Pipeline overview:
-#   test ──► build ──► k8s-smoke-test ──► publish ──► deploy
+#   test ──► build ──► k8s-smoke-test ──► publish ──► deploy (Pi 5)
 #   (PRs run the first three; pushes to main run everything.)
 on:
   push:
@@ -82,14 +82,14 @@ jobs:
         run: |
           docker load -i image.tar
           kind load docker-image portfolio:ci --name ci
-      - name: Deploy with a CI overlay
+      - name: Deploy the Pi overlay with the CI image
         run: |
           mkdir -p overlay
           cat > overlay/kustomization.yaml <<EOF
           apiVersion: kustomize.config.k8s.io/v1beta1
           kind: Kustomization
           resources:
-            - ../k8s
+            - ../k8s/overlays/pi
           images:
             - name: $IMAGE
               newName: portfolio
@@ -99,7 +99,8 @@ jobs:
           kubectl -n portfolio rollout status deployment/portfolio --timeout=120s
       - name: Hit the Service through a port-forward
         run: |
-          kubectl -n portfolio port-forward svc/portfolio 8080:80 &
+          # kind has no load balancer, so port-forward to the Service port instead.
+          kubectl -n portfolio port-forward svc/portfolio 8080:57738 &
           for i in $(seq 1 10); do curl -fsS localhost:8080/healthz && break; sleep 1; done
           curl -fsS localhost:8080/ | grep -q "<title>"
       - name: Debug info on failure
@@ -109,7 +110,9 @@ jobs:
           kubectl -n portfolio describe pods
           kubectl -n portfolio logs -l app=portfolio --tail=50
 
-  # 4) Continuous Delivery: push the tested image to GitHub Container Registry
+  # 4) Continuous Delivery: push a multi-arch image (x86 + arm64 for the Pi 5)
+  #    to GitHub Container Registry. The amd64 layers come from the build
+  #    job's cache; arm64 is built under QEMU emulation.
   publish:
     needs: k8s-smoke-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -118,48 +121,53 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: image
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Tag and push
-        run: |
-          docker load -i image.tar
-          docker tag portfolio:ci "$IMAGE:${{ github.sha }}"
-          docker tag portfolio:ci "$IMAGE:latest"
-          docker push "$IMAGE:${{ github.sha }}"
-          docker push "$IMAGE:latest"
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          build-args: GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  # 5) Continuous Deployment to a real cluster.
-  #    Off until you set the repo variable DEPLOY_ENABLED=true and add a
-  #    KUBECONFIG secret to the "production" environment (see README).
+  # 5) Continuous Deployment to the Raspberry Pi 5 (k3s) via a self-hosted
+  #    runner on the Pi. The runner only makes outbound connections, so no
+  #    ports are opened. Off until the repo variable DEPLOY_ENABLED=true.
+  #    Only pushes to main ever reach the Pi: PRs (including forks) never do.
   deploy:
     needs: publish
-    if: vars.DEPLOY_ENABLED == 'true'
-    runs-on: ubuntu-latest
+    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, ARM64, pi]
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Configure kubectl
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
-          chmod 600 ~/.kube/config
-      - name: Deploy the exact image that passed CI
+      - name: Deploy the image that was just published
         run: |
           mkdir -p overlay
           cat > overlay/kustomization.yaml <<EOF
           apiVersion: kustomize.config.k8s.io/v1beta1
           kind: Kustomization
           resources:
-            - ../k8s
+            - ../k8s/overlays/pi
           images:
             - name: $IMAGE
               newTag: ${{ github.sha }}
           EOF
           kubectl apply -k overlay
-          kubectl -n portfolio rollout status deployment/portfolio --timeout=180s
+          kubectl -n portfolio rollout status deployment/portfolio --timeout=300s
+      - name: Check the site answers on the Pi
+        run: |
+          for i in $(seq 1 15); do curl -fsS http://localhost:57738/healthz && break; sleep 2; done
+          curl -fsS http://localhost:57738/version.json | grep -q "${{ github.sha }}"

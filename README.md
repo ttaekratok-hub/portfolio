@@ -12,7 +12,8 @@ site/                 the website (plain HTML/CSS/JS, no framework)
 tests/                Node built-in test runner checks (links, project data)
 Dockerfile            nginx (non-root) image serving site/
 nginx.conf            /healthz endpoint, security headers, gzip
-k8s/                  Namespace, Deployment, Service (kustomize)
+k8s/base/             Namespace, Deployment, Service (kustomize)
+k8s/overlays/pi/      production tweaks for the Raspberry Pi (Service on :57738)
 .github/workflows/    the CI/CD pipeline
 ```
 
@@ -33,27 +34,87 @@ docker run --rm -p 8080:8080 portfolio   # http://localhost:8080
 
 ```
  PR / push ─► test ─► build ─► k8s-smoke-test ─► publish ─► deploy
-             lint     docker    kind cluster      GHCR       real cluster
-             tests    + curl    rollout + curl    (main)     (main, opt-in)
+             lint     docker    kind cluster      GHCR        Raspberry Pi 5
+             tests    + curl    rollout + curl    amd64+arm64 (main, opt-in)
 ```
 
 | Job | What it teaches |
 |-----|-----------------|
 | `test` | CI basics: checkout, caching, `npm ci`, failing fast |
 | `build` | Docker builds, build args, layer caching, container smoke tests, artifacts between jobs |
-| `k8s-smoke-test` | Spins up a throwaway Kubernetes cluster with **kind** inside the runner, deploys the manifests, waits for the rollout and curls the Service. Free, no cloud account. |
-| `publish` | Pushes the *exact image that was tested* to GitHub Container Registry, tagged with the commit SHA |
-| `deploy` | Continuous deployment to a real cluster with a GitHub Environment gate |
+| `k8s-smoke-test` | Spins up a throwaway Kubernetes cluster with **kind** inside the runner, deploys the same Pi overlay used in production, waits for the rollout and curls the Service. Free, no cloud account. |
+| `publish` | Multi-architecture builds (QEMU + buildx): pushes an x86 + arm64 image to GitHub Container Registry, tagged with the commit SHA |
+| `deploy` | Continuous deployment to k3s on a Raspberry Pi 5 through a self-hosted runner, with a GitHub Environment gate |
 
-### Turning on real deployment (later)
+## Production: Raspberry Pi 5 + Cloudflare Tunnel
 
-1. Get a cluster: a cheap VPS running [k3s](https://k3s.io), or a free tier on
-   a managed provider (GKE Autopilot, AKS, DigitalOcean, Oracle Cloud).
-2. Repo **Settings → Environments → New environment** `production`, add a secret
-   `KUBECONFIG` with your cluster's kubeconfig. Optionally add yourself as a
-   required reviewer: that gives you a manual "approve deploy" button.
-3. Repo **Settings → Variables** add `DEPLOY_ENABLED` = `true`.
-4. Make the GHCR package public (or add an `imagePullSecret`) so the cluster can pull it.
+```
+visitor ─► Cloudflare (HTTPS, WAF, bot protection)
+              │  Cloudflare Tunnel (outbound from the Pi, no open ports)
+              ▼
+Pi 5:  cloudflared ─► localhost:57738 ─► k3s ServiceLB ─► portfolio pods (:8080)
+       GitHub runner (outbound only) ─► kubectl apply ─┘
+```
+
+Run these once on the Pi.
+
+**1. Enable memory cgroups** (needed by k3s on Raspberry Pi OS). Append to the
+single line in `/boot/firmware/cmdline.txt`:
+
+```
+cgroup_memory=1 cgroup_enable=memory
+```
+
+then `sudo reboot`.
+
+**2. Install k3s** without Traefik (Cloudflare is the front door):
+
+```bash
+curl -sfL https://get.k3s.io | sh -s - --disable traefik
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown "$USER" ~/.kube/config && chmod 600 ~/.kube/config
+kubectl get nodes   # should show the Pi as Ready
+```
+
+k3s's built-in ServiceLB is what lets the Service listen on port 57738.
+Make sure nothing else on the Pi (e.g. Caddy) is already using that port.
+
+**3. Register a self-hosted GitHub Actions runner.** Repo **Settings → Actions →
+Runners → New self-hosted runner → Linux / ARM64**, and run the commands it
+shows. When `config.sh` asks for extra labels, enter `pi`. Then tell the runner
+where the kubeconfig is and install it as a service:
+
+```bash
+echo "KUBECONFIG=$HOME/.kube/config" >> .env   # inside the runner folder
+sudo ./svc.sh install && sudo ./svc.sh start
+```
+
+> **Security:** a self-hosted runner executes workflow code on your Pi. The
+> `deploy` job only runs for pushes to `main`, but in a **public** repo someone
+> could open a pull request that edits the workflow to target your runner.
+> Either keep the repo private, or set **Settings → Actions → General → "Require
+> approval for all external contributors"** and never approve a workflow run
+> you haven't read.
+
+**4. Point the tunnel at the site.** In Cloudflare **Zero Trust → Networks →
+Tunnels → your tunnel → Public Hostname**, add `ttaekratok.com` and
+`www.ttaekratok.com`, both with service `http://localhost:57738`. Delete any A
+record that points at your home IP, and any router port-forwards for 80/443.
+
+**5. Switch deployment on.**
+
+1. Push to `main` once so `publish` creates the image, then on GitHub open
+   **Packages → portfolio → Package settings** and set visibility to **Public**
+   (or add an `imagePullSecret` to the Deployment).
+2. Optional: **Settings → Environments → New environment** `production`, add
+   yourself as a required reviewer to get a manual "approve deploy" button.
+3. **Settings → Secrets and variables → Actions → Variables**: add
+   `DEPLOY_ENABLED` = `true`.
+
+Every push to `main` now tests, builds, publishes and rolls out to the Pi with
+zero downtime (`maxUnavailable: 0`). Roll back with
+`kubectl -n portfolio rollout undo deployment/portfolio`.
 
 ## Make it yours: checklist
 

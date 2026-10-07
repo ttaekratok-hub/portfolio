@@ -4,6 +4,7 @@ metadata:
   name: portfolio
   namespace: portfolio
 spec:
+  type: ClusterIP
   selector:
     app: portfolio
   ports:
