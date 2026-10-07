@@ -1,17 +1,19 @@
 # Portfolio
 
 My personal portfolio site (software engineering + technical art), and a hands-on
-playground for **Docker, Kubernetes and GitHub Actions CI/CD**.
+playground for **React, TypeScript, Docker, Kubernetes and GitHub Actions CI/CD**.
 
 ```
-site/                 the website (plain HTML/CSS/JS, no framework)
-  index.html
-  projects.js         ← edit this to add projects
-  main.js             project filters + animated flow-field hero
-  styles.css
-tests/                Node built-in test runner checks (links, project data, k8s manifests)
-Dockerfile            nginx (non-root) image serving site/
-nginx.conf            /healthz endpoint, security headers, gzip
+site/                 the website: React + TypeScript, built with Vite
+  index.html          page shell: <head> tags; the app is rendered into #root
+  src/data/           ← edit profile.ts and projects.ts to change the content
+  src/components/     one file per section (Hero, Projects, Art, About, Contact…)
+  src/styles/         tokens.css (Apple colors/type), glass.css (Liquid Glass), global.css
+  public/             copied as-is: resume.pdf, icons, security.txt, robots.txt
+scripts/prerender.mjs renders the React app to HTML at build time
+tests/                Vitest: page behavior, pre-rendered HTML, color contrast, k8s manifests
+Dockerfile            Node build stage → nginx (non-root) image serving dist/
+nginx.conf            /healthz endpoint, security headers, asset caching, gzip
 k8s/base/             Deployment, Service (kustomize)
 k8s/overlays/pi/      production on the Raspberry Pi (NodePort 30738)
 k8s/tenant/           the site's sandbox on the shared cluster: namespace, quota, Flux's limited account, guardrails
@@ -23,9 +25,11 @@ k8s/flux/             one-time Pi setup: the tenant + the Flux config that deplo
 
 ```bash
 npm install
-npm run lint          # HTML validation
-npm test              # unit tests
-npm start             # http://localhost:3000
+npm run dev           # http://localhost:5173, reloads as you edit
+npm run lint          # ESLint (incl. accessibility rules) + TypeScript type check
+npm test              # Vitest
+npm run build         # production build into dist/ (pre-rendered)
+npm run preview       # serve dist/ at http://localhost:4173
 
 # or the real production container:
 docker build -t portfolio .
@@ -33,6 +37,33 @@ docker run --rm -p 8080:8080 portfolio   # http://localhost:8080
 ```
 
 On the Pi this repo lives at `~/Desktop/ttaekratok_website`.
+
+## How the site works
+
+**Pre-rendering.** A plain React app ships an empty `<div>` and builds the page
+with JavaScript in the browser. Crawlers and corporate web filters often don't
+run JavaScript, so they'd see a blank page. Instead, `npm run build` renders the
+React app to HTML once at build time (`scripts/prerender.mjs`); the browser
+shows that HTML immediately, then React *hydrates* it (attaches the event
+handlers) without redrawing. `tests/prerender.test.ts` checks the HTML has the
+real content and nothing the Content-Security-Policy would block.
+
+**Design.** Following Apple's Human Interface Guidelines:
+
+- *Colors:* Apple's system colors for light and dark mode
+  (`src/styles/tokens.css`). Where an Apple value is too faint for small text on
+  the web, the "Increase Contrast" variant or apple.com's own value is used;
+  `tests/tokens.test.ts` computes every text/background contrast ratio.
+- *Type:* the HIG iOS text styles. Apple devices render real SF Pro through the
+  system font; Apple's license doesn't allow serving SF as a web font, so other
+  devices get Inter, its closest open-source match.
+- *Liquid Glass* (`src/styles/glass.css`) only on the floating controls (nav,
+  segmented control, a button), never on content, as the HIG asks. Real
+  refraction where the browser supports it (Chromium), frosted blur elsewhere,
+  and a solid surface for Reduce Transparency / Increase Contrast.
+- Capsule controls with 44pt tap targets, inset grouped lists like iOS
+  Settings, continuous ("squircle") corners where the browser supports them,
+  and light/dark following the system setting.
 
 ## The pipeline
 
@@ -47,10 +78,10 @@ Pull requests stop after `k8s-smoke-test`; only pushes to `main` publish and dep
 
 | Job | What it teaches |
 |-----|-----------------|
-| `test` | CI basics: checkout, caching, `npm ci`, failing fast |
-| `build` | Docker builds, build args, layer caching, container smoke tests, artifacts between jobs |
+| `test` | CI basics: checkout, caching, `npm ci`, failing fast. Lint + typecheck, tests, production build, HTML validation |
+| `build` | Multi-stage Docker builds (Node build → nginx), build args, layer caching, container smoke tests, artifacts between jobs |
 | `k8s-smoke-test` | Spins up a throwaway Kubernetes cluster with **kind** inside the runner, deploys the same Pi overlay used in production, waits for the rollout and curls the Service. Free, no cloud account. |
-| `publish` | Multi-architecture builds (QEMU + buildx): pushes an x86 + arm64 image to GitHub Container Registry, tagged with the commit SHA |
+| `publish` | Multi-architecture builds (buildx): pushes an x86 + arm64 image to GitHub Container Registry, tagged with the commit SHA. The Node stage runs natively (`--platform=$BUILDPLATFORM`); only nginx's arm64 layers need QEMU |
 | `deploy` | GitOps: points the `deploy` branch at the tested commit plus a commit pinning its image. Per-job least-privilege `permissions`, a `concurrency` lock, and a GitHub Environment record of every deploy |
 
 ## Production: Raspberry Pi 5 + Flux + Cloudflare Tunnel
@@ -176,14 +207,15 @@ reservation on the router so its LAN IP never changes.
 
 ## Make it yours: checklist
 
-- [ ] Replace "Your Name", the about text and contact links in `site/index.html`
-- [ ] Add `site/resume.pdf`
-- [ ] Put 3–5 real projects in `site/projects.js`, each with a problem, what you did, and a result
-- [ ] Tech art: add screenshots/GIFs/turntables of shaders, tools, rigs (keep files small, use `.webp`/`.mp4`)
+- [x] Name, about text and contact links (`site/src/data/profile.ts`)
+- [x] `site/public/resume.pdf`
+- [ ] Push the MikroTik lab notes to GitHub, then add a `Docs` link in `site/src/data/projects.ts`
+- [ ] Art: replace the two "under construction" pieces in `site/src/components/Art.tsx` with
+      screenshots/GIFs/turntables (keep files small, use `.webp`/`.mp4`, put them in `site/public/`)
 
 ## Learning exercises (do them one PR at a time)
 
-1. **Break the build on purpose.** Add a broken link in `index.html`, open a PR, watch `test` fail. Fix it.
+1. **Break the build on purpose.** Give a project an unknown category in `projects.ts`, open a PR, watch `test` fail on the type check. Fix it.
 2. **Branch protection.** Settings → Branches: require the `test`, `build` and `k8s-smoke-test` checks before merging to `main`.
 3. **Add an Ingress.** Install ingress-nginx in the kind job and route a hostname to the Service.
 4. **Autoscaling.** Add a `HorizontalPodAutoscaler` for the Deployment.

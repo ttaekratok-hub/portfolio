@@ -1,0 +1,84 @@
+/*
+ * Liquid Glass material for the web.
+ *
+ * Apple's guidance: glass is for the floating navigation/controls layer only
+ * (never content cards), used sparingly, never stacked glass-on-glass, and
+ * it must stay legible and respect Reduce Transparency / Increase Contrast.
+ *
+ * Layers, from back to front:
+ *   1. backdrop-filter: blur + saturation of whatever is behind (all modern
+ *      browsers), plus real refraction via an SVG displacement filter where
+ *      the browser can render it (Chromium; enabled from App.tsx).
+ *   2. a translucent tint for legibility,
+ *   3. a specular sheen (::before) and rim highlight, as if light catches
+ *      the edge of a lens.
+ */
+
+.glass {
+  position: relative;
+  isolation: isolate;
+  background: var(--glass-tint);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid var(--glass-edge);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 1px rgb(0 0 0 / 0.06),
+    var(--glass-shadow);
+}
+
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    140deg,
+    var(--glass-sheen) 0%,
+    transparent 38%,
+    transparent 72%,
+    color-mix(in srgb, var(--glass-sheen) 45%, transparent) 100%
+  );
+}
+
+/* Refraction: bends the content behind the glass. Only Chromium renders SVG
+   filters inside backdrop-filter (Safari and Firefox would drop the whole
+   effect), so App.tsx sets data-refraction only there. */
+:root[data-refraction] .glass {
+  backdrop-filter: url(#liquid-glass) blur(var(--glass-blur)) saturate(180%);
+}
+
+/* No backdrop-filter support at all: an opaque surface stays readable. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--glass-solid);
+  }
+}
+
+/* Accessibility settings turn the glass into a solid surface. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass,
+  :root[data-refraction] .glass {
+    background: var(--glass-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass::before {
+    display: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .glass {
+    border-color: var(--label-secondary);
+  }
+}
+
+/* The SVG that holds the refraction filter takes no space on the page. */
+.glass-filter {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}

@@ -3,4 +3,6 @@
 k8s
 tests
 node_modules
+dist
+dist-ssr
 *.md

@@ -23,7 +23,8 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  # 1) Continuous Integration: lint + unit tests
+  # 1) Continuous Integration: lint + typecheck, tests, then a production
+  #    build whose pre-rendered HTML is validated.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -35,6 +36,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - run: npm run build
+      - run: npm run validate:html
 
   # 2) Build the Docker image and smoke-test the container
   build:
@@ -56,7 +59,8 @@ jobs:
         run: |
           docker run -d --name web -p 8080:8080 portfolio:ci
           for i in $(seq 1 10); do curl -fsS localhost:8080/healthz && break; sleep 1; done
-          curl -fsS localhost:8080/ | grep -q "<title>"
+          # Pre-rendered: the real content is in the HTML, no JavaScript needed.
+          curl -fsS localhost:8080/ | grep -q "Tichakorn Taekratok"
           curl -fsS localhost:8080/version.json | grep -q "${{ github.sha }}"
           # Security headers on every response, version.json included.
           for path in / /version.json; do

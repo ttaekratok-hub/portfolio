@@ -1,12 +1,13 @@
-const { test } = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { test } from "vitest";
 
-const ROOT = path.join(__dirname, "..");
-const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
-const yamlFiles = (dir) =>
-  fs.readdirSync(path.join(ROOT, dir), { recursive: true })
+const ROOT = process.cwd();
+const read = (p: string) => fs.readFileSync(path.join(ROOT, p), "utf8");
+const yamlFiles = (dir: string) =>
+  fs
+    .readdirSync(path.join(ROOT, dir), { recursive: true, encoding: "utf8" })
     .filter((f) => f.endsWith(".yaml"))
     .map((f) => path.join(dir, f));
 
@@ -16,7 +17,7 @@ test("app manifests only contain what Flux's limited account may apply", () => {
   for (const f of [...yamlFiles("k8s/base"), ...yamlFiles("k8s/overlays")]) {
     const text = read(f);
     for (const m of text.matchAll(/^kind:\s*(\S+)/gm)) {
-      assert.ok(allowed.has(m[1]), `${f}: kind ${m[1]} is not allowed`);
+      assert.ok(allowed.has(m[1]!), `${f}: kind ${m[1]} is not allowed`);
     }
     for (const m of text.matchAll(/^\s*namespace:\s*(\S+)/gm)) {
       assert.equal(m[1], "portfolio", `${f}: namespace ${m[1]}`);
@@ -57,6 +58,6 @@ test("Flux deploys the CI-only branch with least privilege", () => {
   assert.match(flux, /^\s*serviceAccountName:\s*portfolio-reconciler\s*$/m);
   assert.match(flux, /^\s*targetNamespace:\s*portfolio\s*$/m);
   assert.match(flux, /^\s*suspend:\s*false\s*$/m, "keep explicit so apply -k resumes a paused deploy");
-  const p = flux.match(/^\s*path:\s*(\S+)\s*$/m)[1];
+  const p = flux.match(/^\s*path:\s*(\S+)\s*$/m)![1]!;
   assert.ok(fs.existsSync(path.join(ROOT, p, "kustomization.yaml")), `missing ${p}`);
 });

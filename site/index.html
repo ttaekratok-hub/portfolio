@@ -1,124 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tichakorn Taekratok — Software, Infrastructure &amp; Technical Art</title>
-  <meta name="description" content="Portfolio of Tichakorn &quot;Tweety&quot; Taekratok: Kubernetes, CI/CD and network infrastructure projects, software engineering and art.">
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <a class="skip-link" href="#main">Skip to content</a>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Tichakorn Taekratok — Software, Infrastructure &amp; Technical Art</title>
+    <meta
+      name="description"
+      content="Portfolio of Tichakorn &quot;Tweety&quot; Taekratok: Kubernetes, CI/CD and network infrastructure projects, software engineering and art.">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f2f7">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+    <link rel="canonical" href="https://ttaekratok.com/">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
-  <header class="site-header">
-    <nav class="nav" aria-label="Primary">
-      <a class="brand" href="#top">TT</a>
-      <ul>
-        <li><a href="#projects">Projects</a></li>
-        <li><a href="#art">Art</a></li>
-        <li><a href="#about">About</a></li>
-        <li><a href="#skills">Skills</a></li>
-        <li><a href="#contact">Contact</a></li>
-      </ul>
-    </nav>
-  </header>
-
-  <main id="main">
-    <section class="hero" id="top">
-      <canvas id="hero-canvas" aria-hidden="true"></canvas>
-      <div class="hero-content">
-        <p class="eyebrow">Software &amp; Infrastructure Engineer · Technical Artist</p>
-        <h1>Hi, I'm <span class="accent">Tweety</span>.</h1>
-        <p class="lede">I'm Tichakorn Taekratok. I build and run reliable systems, from Kubernetes clusters and CI/CD pipelines to network labs, and I make art and real-time visuals.</p>
-        <div class="cta">
-          <a class="button primary" href="#projects">See my work</a>
-          <a class="button" href="resume.pdf">Résumé (PDF)</a>
-        </div>
-      </div>
-    </section>
-
-    <section id="projects" class="section">
-      <h2>Projects</h2>
-      <div class="filters" role="group" aria-label="Filter projects">
-        <button type="button" class="filter is-active" data-filter="all" aria-pressed="true">All</button>
-        <button type="button" class="filter" data-filter="devops" aria-pressed="false">DevOps</button>
-        <button type="button" class="filter" data-filter="networking" aria-pressed="false">Networking</button>
-        <button type="button" class="filter" data-filter="engineering" aria-pressed="false">Engineering</button>
-        <button type="button" class="filter" data-filter="techart" aria-pressed="false">Tech Art</button>
-      </div>
-      <ul class="project-grid" id="project-grid"></ul>
-    </section>
-
-    <section id="art" class="section">
-      <h2>Art</h2>
-      <p class="section-intro">Two showcase pieces are on the way. Check back soon.</p>
-      <ul class="project-grid">
-        <li class="card art-card">
-          <div class="art-placeholder"><span class="badge">Under construction</span></div>
-          <h3>Showcase piece #1</h3>
-          <p>Coming soon.</p>
-        </li>
-        <li class="card art-card">
-          <div class="art-placeholder"><span class="badge">Under construction</span></div>
-          <h3>Showcase piece #2</h3>
-          <p>Coming soon.</p>
-        </li>
-      </ul>
-    </section>
-
-    <section id="about" class="section">
-      <h2>About</h2>
-      <p>I'm a Computer Science graduate from Oregon State University (B.S., Summa Cum Laude, 3.87 GPA), based in Corvallis, Oregon. I work as a Business Analyst at Western Digital, turning proposed system changes into clear, testable requirements. I also host and maintain production websites for three clients, and I run my own k3s Kubernetes cluster, which serves this site.</p>
-      <p>I'm looking for software engineering, infrastructure and technical art roles.</p>
-      <ul class="timeline">
-        <li><span class="when">May 2026 – now</span><span><strong>Business Analyst 1, Programming</strong> · Western Digital</span></li>
-        <li><span class="when">May 2026 – now</span><span><strong>Freelance Web Developer &amp; Systems Administrator</strong> · Corvallis, OR (part-time)</span></li>
-        <li><span class="when">2021 – 2025</span><span><strong>B.S. Computer Science (Applied CS)</strong> · Oregon State University · Summa Cum Laude</span></li>
-        <li><span class="when">2020 – 2021</span><span><strong>Robotics and AI</strong> · King Mongkut's Institute of Technology Ladkrabang, Bangkok</span></li>
-        <li><span class="when">In progress</span><span><strong>AWS Certified Solutions Architect – Associate</strong> · Amazon Web Services</span></li>
-        <li><span class="when">Completed</span><span><strong>Pre Security</strong> · TryHackMe (Cyber Security 101 in progress)</span></li>
-      </ul>
-    </section>
-
-    <section id="skills" class="section">
-      <h2>Skills</h2>
-      <div class="skills">
-        <div>
-          <h3>Platforms</h3>
-          <ul><li>Kubernetes (k3s)</li><li>Docker</li><li>nginx</li><li>Linux (Ubuntu, Kali)</li><li>Proxmox VE</li><li>MikroTik RouterOS v7</li><li>Windows Server</li></ul>
-        </div>
-        <div>
-          <h3>Automation</h3>
-          <ul><li>Python</li><li>Bash</li><li>Ansible</li><li>Terraform</li><li>Git</li><li>GitHub Actions CI/CD</li></ul>
-        </div>
-        <div>
-          <h3>Networking</h3>
-          <ul><li>TCP/IP &amp; subnetting</li><li>OSPF</li><li>DNS</li><li>SNMP</li><li>Firewall rules</li><li>Routing &amp; switching fundamentals</li></ul>
-        </div>
-        <div>
-          <h3>Troubleshooting</h3>
-          <ul><li>Wireshark</li><li>Nmap</li><li>traceroute &amp; ping</li><li>dig</li><li>snmpwalk</li></ul>
-        </div>
-      </div>
-    </section>
-
-    <section id="contact" class="section">
-      <h2>Contact</h2>
-      <p>Open to software engineering, infrastructure and technical artist roles. Based in Corvallis, OR.</p>
-      <ul class="contact-links">
-        <li><a href="mailto:ttaekratok@gmail.com">ttaekratok@gmail.com</a></li>
-        <li><a class="nowrap" href="tel:+15412867376">(541) 286-7376</a></li>
-        <li><a href="https://www.linkedin.com/in/tichakorn-taekratok-8b7b5534b">LinkedIn</a></li>
-        <li><a href="https://github.com/ttaekratok-hub">GitHub</a></li>
-      </ul>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <p>Shipped with Docker, Kubernetes (k3s), Flux and GitHub Actions. <span id="build-info"></span></p>
-  </footer>
-
-  <script src="projects.js"></script>
-  <script src="main.js"></script>
-</body>
+    <!-- How the link looks when shared on LinkedIn, iMessage, Slack… -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ttaekratok.com/">
+    <meta property="og:title" content="Tichakorn “Tweety” Taekratok">
+    <meta property="og:description" content="Software &amp; Infrastructure Engineer · Technical Artist">
+    <meta property="og:image" content="https://ttaekratok.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+  </head>
+  <body>
+    <!-- scripts/prerender.mjs replaces the comment below with the rendered page. -->
+    <div id="root"><!--app-html--></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

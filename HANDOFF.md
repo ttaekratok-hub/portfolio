@@ -10,8 +10,13 @@ and CI/CD along the way**. Explain the *why* of each step.
 ## Where things are
 - Repo `ttaekratok-hub/portfolio` (public), default branch `main`. On the Pi
   it's cloned at `~/Desktop/ttaekratok_website`.
-- `site/`: the static site. Still to personalize: "Your Name", About text,
-  contact links, `site/resume.pdf`, real projects in `site/projects.js`.
+- `site/`: React + TypeScript (Vite), pre-rendered to static HTML at build
+  time (scripts/prerender.mjs) so crawlers/web filters see real content.
+  Content lives in `site/src/data/` (profile.ts, projects.ts). Apple HIG design:
+  system colors (tokens.css, contrast-tested), SF via system font / Inter
+  fallback, Liquid Glass only on floating controls (glass.css). Art section has
+  two "under construction" placeholders; the MikroTik-Lab GitHub repo is empty,
+  so it isn't linked yet.
 - Pipeline (`.github/workflows/ci-cd.yml`): test → build → k8s-smoke-test
   (kind, same tenant + limited account as the Pi) → publish (GHCR, public
   package, amd64+arm64) → deploy (CI rewrites the `deploy` branch with `k8s/`
@@ -24,12 +29,14 @@ and CI/CD along the way**. Explain the *why* of each step.
   on the Pi's LAN IP. README has the details and the learning exercises.
 
 ## Local checks
-`npm ci && npm run lint && npm test`
+`npm ci && npm run lint && npm test && npm run build && npm run validate:html`
 
 ## Safety notes to keep giving the owner
 - Never paste tunnel tokens, kubeconfigs or IPs into chat. Avoid plain
   `docker inspect` (it prints tunnel tokens); use `-f` with specific fields.
 - Never re-run the k3s installer on the Pi: the cluster also runs other apps.
+- Keep the site CSP-safe: no inline <script>/<style>/style="" in rendered
+  HTML (tests/prerender.test.ts guards this).
 - Keep the tenant guardrails when adding Kubernetes objects: widen the Role
   in `k8s/tenant/rbac.yaml` only for the exact kinds needed, never use a
   built-in role like `edit`.

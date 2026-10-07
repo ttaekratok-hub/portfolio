@@ -1,0 +1,150 @@
+/*
+ * Design tokens, following Apple's Human Interface Guidelines.
+ *
+ * Colors are Apple's system colors (HIG, 2025 values) for light and dark
+ * appearance. Where an Apple value is too faint for small text on the web
+ * (WCAG AA needs 4.5:1), we use Apple's own "Increase Contrast" variant or
+ * the value apple.com uses; tests/tokens.test.ts checks every pair.
+ *
+ * Type sizes are the HIG iOS text styles at the default (Large) size.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Fonts: real SF Pro on Apple devices via the system font (Apple's license
+     doesn't allow serving SF as a web font); Inter, its closest open-source
+     match, everywhere else. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI Variable", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* HIG text styles: size / line height */
+  --text-large-title: 34px;
+  --leading-large-title: 41px;
+  --text-title1: 28px;
+  --leading-title1: 34px;
+  --text-title2: 22px;
+  --leading-title2: 28px;
+  --text-title3: 20px;
+  --leading-title3: 25px;
+  --text-headline: 17px; /* semibold */
+  --leading-headline: 22px;
+  --text-body: 17px;
+  --leading-body: 1.47; /* long-form paragraphs, as on apple.com */
+  --text-callout: 16px;
+  --text-subhead: 15px;
+  --leading-subhead: 20px;
+  --text-footnote: 13px;
+  --leading-footnote: 18px;
+  --text-caption: 12px;
+
+  /* SF-style tracking: tighter as text gets larger */
+  --tracking-body: -0.022em;
+  --tracking-title: -0.016em;
+  --tracking-display: -0.03em;
+
+  /* 8-point grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* Shapes: capsules for controls, rounded rectangles for content.
+     Inner corners are concentric: inner radius = outer radius - padding. */
+  --radius-capsule: 999px;
+  --radius-card: 24px;
+  --radius-group: 18px;
+  --hit-target: 44px; /* HIG minimum tap target */
+
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration: 0.35s;
+  --content-width: 1080px;
+
+  /* ---------- Light appearance ---------- */
+  --bg: #f2f2f7; /* systemGroupedBackground */
+  --bg-elevated: #ffffff; /* secondarySystemGroupedBackground */
+  --label: #1d1d1f;
+  --label-secondary: #6e6e73; /* apple.com secondary; HIG's 60% gray is 3.4:1 */
+  --separator: rgb(60 60 67 / 0.29);
+  --fill: rgb(120 120 128 / 0.2); /* systemFill */
+  --fill-tertiary: rgb(118 118 128 / 0.12); /* tertiarySystemFill */
+  --tint: #0066cc; /* link blue apple.com uses: systemBlue is 3.5:1 on white, its
+                     Increase Contrast variant #1e6ef4 only 4.1:1 on this gray */
+  --tint-fill: #1e6ef4; /* systemBlue, Increase Contrast: 4.7:1 with white text */
+  --on-tint: #ffffff;
+  --accent-indigo: #564ade;
+  --accent-purple: #b02fc2;
+  --accent-pink: #e7124d;
+  --focus-ring: #0066cc;
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.06);
+
+  /* Liquid Glass (navigation/controls layer only) */
+  --glass-tint: rgb(255 255 255 / 0.6);
+  --glass-edge: rgb(255 255 255 / 0.75);
+  --glass-highlight: rgb(255 255 255 / 0.95);
+  --glass-sheen: rgb(255 255 255 / 0.55);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.12);
+  --glass-solid: #ffffff;
+  --glass-blur: 12px;
+  --control-thumb: #ffffff;
+  --control-thumb-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+
+  /* Hero flow field */
+  --flow-bg: #f2f2f7;
+  --flow-fade: rgb(242 242 247 / 0.08);
+  --flow-lightness: 52%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000; /* systemBackground */
+    --bg-elevated: #1c1c1e; /* secondarySystemBackground */
+    --label: #f5f5f7;
+    --label-secondary: #98989f; /* HIG secondaryLabel (235,235,245 @ 60%) over #1c1c1e */
+    --separator: rgb(84 84 88 / 0.6);
+    --fill: rgb(120 120 128 / 0.36);
+    --fill-tertiary: rgb(118 118 128 / 0.24);
+    --tint: #0091ff; /* systemBlue, dark */
+    --tint-fill: #1e6ef4; /* white text needs the deeper blue */
+    --on-tint: #ffffff;
+    --accent-indigo: #6d7cff;
+    --accent-purple: #db34f2;
+    --accent-pink: #ff375f;
+    --focus-ring: #0091ff;
+    --card-shadow: none;
+
+    --glass-tint: rgb(44 44 48 / 0.5);
+    --glass-edge: rgb(255 255 255 / 0.16);
+    --glass-highlight: rgb(255 255 255 / 0.28);
+    --glass-sheen: rgb(255 255 255 / 0.18);
+    --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
+    --glass-solid: #1c1c1e;
+    --control-thumb: #636366; /* systemGray2, dark */
+    --control-thumb-shadow: none;
+
+    --flow-bg: #000000;
+    --flow-fade: rgb(0 0 0 / 0.035); /* longer trails: they vanish fast on black */
+    --flow-lightness: 64%;
+  }
+}
+
+/* Increase Contrast: stronger labels and separators, Apple's high-contrast blue. */
+@media (prefers-contrast: more) {
+  :root {
+    --label-secondary: #3a3a3c;
+    --separator: #8e8e93;
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root {
+    --label-secondary: #c7c7cc;
+    --tint: #5cb8ff; /* systemBlue, Increase Contrast dark */
+  }
+}
