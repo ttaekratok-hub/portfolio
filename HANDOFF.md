@@ -14,7 +14,9 @@ and CI/CD along the way**. Explain the *why* of each step.
   time (scripts/prerender.mjs) so crawlers/web filters see real content.
   Content lives in `site/src/data/` (profile.ts, projects.ts). Apple HIG design:
   system colors (tokens.css, contrast-tested), SF via system font / Inter
-  fallback, Liquid Glass only on the floating nav (glass.css). Art section has
+  fallback, Liquid Glass only on floating controls (nav, pause button).
+  Space theme with Three.js (site/src/space/): background scene and a galaxy
+  map of projects, loaded after hydration; daytime sky in light mode. Art section has
   two "under construction" placeholders; the MikroTik-Lab GitHub repo is empty,
   so it isn't linked yet.
 - Pipeline (`.github/workflows/ci-cd.yml`): test → build → k8s-smoke-test

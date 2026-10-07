@@ -62,6 +62,8 @@ site/                 the website: React + TypeScript, built with Vite
   src/App.tsx         the whole page, section by section
   src/data/           ← edit profile.ts and projects.ts to change the content
   src/components/     one file per section (Hero, Projects, Art, About, Contact…)
+  src/space/          the Three.js space theme: shared engine, galaxy generator,
+                      background scene, galaxy map of projects
   src/styles/         tokens.css (Apple colors/type), glass.css (Liquid Glass), global.css
   public/             copied as-is: resume.pdf, icons, security.txt, robots.txt
 scripts/prerender.mjs renders the React app to HTML at build time
@@ -143,8 +145,9 @@ run inline ones.)
 - *Type:* the HIG iOS text styles. Apple devices render real SF Pro through the
   system font; Apple's license doesn't allow serving SF as a web font, so other
   devices get Inter, its closest open-source match.
-- *Liquid Glass* (`site/src/styles/glass.css`) only on the floating nav, the one
-  control that stays above the content as it scrolls, as the HIG asks. The
+- *Liquid Glass* (`site/src/styles/glass.css`) only on the floating controls
+  that stay above the content as it scrolls (the nav and the animation's
+  pause button), as the HIG asks. The
   project filter and the résumé button scroll with the page, so they use iOS's
   standard gray fills instead (glass there would stack under the glass nav). It's
   built on `backdrop-filter`, a CSS effect applied to whatever is behind an
@@ -154,6 +157,29 @@ run inline ones.)
 - Capsule controls with 44pt tap targets, inset grouped lists like iOS
   Settings, continuous ("squircle") corners where the browser supports them,
   and light/dark following the system setting.
+
+**Space theme (Three.js / WebGL).** Behind the page: a starfield, a procedural
+spiral galaxy and nebula clouds in dark mode, a soft daytime sky with clouds in
+light mode (`site/src/space/background.ts`). In the Projects section: an
+interactive galaxy map where every project is a star system and every category
+an "empire", inspired by the Stellaris galaxy map (`site/src/space/map.ts`,
+`site/src/components/GalaxyMap.tsx`). How it stays fast and accessible:
+
+- *Loaded late:* the page is pre-rendered without any 3D; a CSS gradient
+  stands in. After hydration, when the browser is idle, the scenes and Three.js
+  arrive through a dynamic `import()`, a separate file, so the main bundle stays
+  small (`tests/space.test.ts` checks that Three.js isn't in it).
+- *One engine for both scenes* (`site/src/space/engine.ts`): capped pixel ratio,
+  frames only while something moves, paused off-screen and in background tabs,
+  resizing, recovery from a lost GPU context, and full cleanup.
+- *Deterministic:* stars come from a seeded random generator
+  (`site/src/space/random.ts`), so the galaxy is the same on every visit and the
+  generator is unit-tested (`site/src/space/galaxy.ts`).
+- *Visitor settings:* Reduce Motion gets still frames; a floating pause button
+  stops the animation (WCAG 2.2.2); light/dark switches live; without WebGL the
+  CSS gradient stays and the map says so. The map's star systems are real
+  buttons, so it works with a keyboard and a screen reader, and every project is
+  also listed as a card below it.
 
 ## Follow a request
 
@@ -409,7 +435,7 @@ plain words. The file's own comments go into more detail.
 |---------|-----------|----------------|
 | Component, JSX, props | `site/src/App.tsx`, `site/src/components/Lists.tsx` | A component is a function that returns JSX, HTML-like syntax describing part of the page. Props are its inputs, written like HTML attributes. |
 | State | `site/src/components/Projects.tsx` | `useState` keeps a value between renders. Setting it makes React run the component again and update only the parts of the page that changed. |
-| Effects, refs | `site/src/components/NavBar.tsx`, `site/src/components/FlowField.tsx` | `useEffect` runs browser-only code after rendering (observers, animation, `fetch`); the function it returns cleans up (disconnect, cancel) when the component goes away. A ref holds a real DOM element, here the `<canvas>`. |
+| Effects, refs | `site/src/components/NavBar.tsx`, `site/src/components/SpaceBackground.tsx` | `useEffect` runs browser-only code after rendering (observers, animation, `fetch`); the function it returns cleans up (disconnect, cancel) when the component goes away. A ref holds a real DOM element, here the `<canvas>`. |
 | Types | `site/src/data/projects.ts`, `tsconfig.json` | Union types and interfaces spell out which values are allowed, so a typo in a category fails `npm run lint` instead of reaching the site. |
 | Accessibility (a11y) | `site/src/App.tsx`, `site/src/components/Projects.tsx`, `eslint.config.js` | Landmarks, a skip link and ARIA attributes let keyboard and screen-reader users find their way; lint rules catch common mistakes. |
 
@@ -422,6 +448,9 @@ plain words. The file's own comments go into more detail.
 | Design tokens | `site/src/styles/tokens.css` | Named CSS variables (`--label`, `--space-4`) defined once, with light and dark values, so no component hard-codes a color. |
 | WCAG contrast | `tests/tokens.test.ts` | How far apart text and its background are in brightness (luminance), as a ratio from 1:1 (identical) to 21:1 (black on white). Normal-size text needs at least 4.5:1 to stay readable. |
 | `backdrop-filter` | `site/src/styles/glass.css`, `site/src/components/GlassFilter.tsx` | Blurs or bends what's *behind* an element, not the element itself. The base of Liquid Glass. |
+| WebGL, Three.js | `site/src/space/engine.ts`, `site/src/space/background.ts` | WebGL draws with the GPU inside a `<canvas>`; Three.js wraps it in scenes, cameras and materials. Each layer of stars is one draw call of many points. |
+| Shaders | `site/src/space/` (the GLSL strings in the scenes) | Small programs that run on the GPU for every point or pixel: they place and color stars, make them twinkle and draw noise clouds. |
+| Code splitting, dynamic `import()` | `site/src/components/SpaceBackground.tsx`, `tests/space.test.ts` | Loading part of the app later, as a separate file, so the first page view doesn't wait for it. |
 | Progressive enhancement, user settings | `site/src/styles/global.css`, `site/src/styles/glass.css` | Newer CSS (like `corner-shape`) improves the page where supported and is ignored elsewhere. Media queries follow the visitor's Reduce Motion and Reduce Transparency settings. |
 
 ### Build, lint and test
@@ -497,8 +526,9 @@ that serves it. Each step builds on the one before.
    test at the end of `tests/app.test.tsx`.
    Learn more: https://react.dev/learn
 3. **Browser-only code.** `components/NavBar.tsx`, then
-   `components/FlowField.tsx`: effects and their cleanup, refs, the Canvas API,
-   Reduce Motion.
+   `components/SpaceBackground.tsx` and `space/engine.ts`: effects and their
+   cleanup, refs, dynamic `import()`, the WebGL frame loop, Reduce Motion.
+   Then `space/galaxy.ts` and `space/background.ts` for the 3D itself.
 4. **Pre-rendering and hydration.** `site/index.html` → `site/src/main.tsx` →
    `site/src/entry-server.tsx` → `scripts/prerender.mjs` →
    `components/Contact.tsx`.
@@ -557,7 +587,7 @@ Then make it yours with the checklist, and practice with the exercises below.
 5. **Security scanning.** Add a Trivy image scan step to `build` and fail on critical CVEs.
 6. **Preview environments.** Deploy each PR to its own namespace (`pr-123`) and comment the URL.
 7. **Image automation.** Replace the `deploy` job with Flux's image-reflector and image-automation controllers, so the Pi notices new images by itself.
-8. **Tech-art upgrade.** Port the flow-field hero to a WebGL fragment shader.
+8. **Tech-art upgrade.** Give the map's star systems planets on orbits, or add a shooting star now and then to the background (respecting Reduce Motion and the pause button).
 9. **Deploy status on commits.** Add a Flux `Provider` (type `github`) and `Alert` so each commit on GitHub shows whether it reached the Pi.
 
 > **Adding Kubernetes objects** (exercises 3, 4 and 6): Flux's account may only
