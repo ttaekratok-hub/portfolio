@@ -1,0 +1,43 @@
+# Flux on the Pi pulls the `deploy` branch and applies k8s/overlays/pi.
+# CI rewrites that branch after every check passed (see ci-cd.yml); it holds
+# only k8s/, with the image pinned to the tested commit.
+#
+# Needs the Secret flux-system/portfolio-git (a read-only GitHub deploy key),
+# created with `kubectl create secret`, never committed.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: portfolio
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: ssh://git@github.com/ttaekratok-hub/portfolio
+  ref:
+    branch: deploy
+  secretRef:
+    name: portfolio-git
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: portfolio
+  namespace: flux-system
+spec:
+  # Explicit, so `kubectl apply -k k8s/flux` also undoes a `kubectl patch`
+  # pause (apply leaves alone fields its file never mentioned).
+  suspend: false
+  # Re-applied whenever the deploy branch moves, and every 10m regardless,
+  # which undoes any manual `kubectl edit` drift.
+  interval: 10m
+  retryInterval: 1m
+  sourceRef:
+    kind: GitRepository
+    name: portfolio
+  path: ./k8s/overlays/pi
+  # Least privilege: apply as portfolio-reconciler (k8s/tenant/rbac.yaml),
+  # which can only manage the site's Deployment and Service.
+  serviceAccountName: portfolio-reconciler
+  targetNamespace: portfolio
+  prune: true # delete objects that were removed from git
+  wait: true # only Ready once the Deployment's rollout has finished
+  timeout: 3m

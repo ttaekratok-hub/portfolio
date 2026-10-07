@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# One-time cluster setup on the Pi, applied by hand with admin rights:
+#   kubectl apply -k k8s/flux
+# Flux does not manage these files, so re-apply after editing them.
+resources:
+  - ../tenant
+  - portfolio.yaml

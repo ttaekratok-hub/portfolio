@@ -1,8 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Production on the Raspberry Pi 5 (k3s). The Cloudflare Tunnel on the Pi
-# forwards ttaekratok.com to http://localhost:57738.
+# Production on the Raspberry Pi 5 (k3s), applied by Flux from the `deploy`
+# branch (see k8s/flux/). The Cloudflare Tunnel forwards ttaekratok.com to
+# http://<pi-lan-ip>:30738.
+#
+# No `images:` block here: on the deploy branch, CI appends one that pins the
+# exact commit SHA it just tested and published.
 resources:
   - ../../base
 

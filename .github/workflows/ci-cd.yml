@@ -1,7 +1,7 @@
 name: CI/CD
 
 # Pipeline overview:
-#   test ──► build ──► k8s-smoke-test ──► publish ──► deploy (Pi 5)
+#   test ──► build ──► k8s-smoke-test ──► publish ──► deploy (moves `deploy` branch) ··► Flux on the Pi 5
 #   (PRs run the first three; pushes to main run everything.)
 on:
   push:
@@ -9,8 +9,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A newer push cancels an older run of the same kind on the same branch. The
+# event name is in the key so a manual run can't cancel a push's deploy.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -82,7 +84,7 @@ jobs:
         run: |
           docker load -i image.tar
           kind load docker-image portfolio:ci --name ci
-      - name: Deploy the Pi overlay with the CI image
+      - name: Deploy the Pi overlay the way Flux does on the Pi
         run: |
           mkdir -p overlay
           cat > overlay/kustomization.yaml <<EOF
@@ -95,14 +97,17 @@ jobs:
               newName: portfolio
               newTag: ci
           EOF
-          kubectl apply -k overlay
+          # Same sandbox as on the Pi (restricted namespace, quota, guardrails),
+          # and apply as the same limited account Flux uses there.
+          kubectl create namespace flux-system
+          kubectl apply -k k8s/tenant
+          kubectl apply -k overlay --as=system:serviceaccount:flux-system:portfolio-reconciler
           kubectl -n portfolio rollout status deployment/portfolio --timeout=120s
-      - name: Hit the Service through a port-forward
+      - name: Hit the NodePort on the node's IP, like the tunnel on the Pi does
         run: |
-          # kind has no load balancer, so port-forward to the Service port instead.
-          kubectl -n portfolio port-forward svc/portfolio 8080:57738 &
-          for i in $(seq 1 10); do curl -fsS localhost:8080/healthz && break; sleep 1; done
-          curl -fsS localhost:8080/ | grep -q "<title>"
+          NODE_IP=$(kubectl get node ci-control-plane -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+          for i in $(seq 1 10); do curl -fsS "http://$NODE_IP:30738/healthz" && break; sleep 1; done
+          curl -fsS "http://$NODE_IP:30738/" | grep -q "<title>"
       - name: Debug info on failure
         if: failure()
         run: |
@@ -142,32 +147,42 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # 5) Continuous Deployment to the Raspberry Pi 5 (k3s) via a self-hosted
-  #    runner on the Pi. The runner only makes outbound connections, so no
-  #    ports are opened. Off until the repo variable DEPLOY_ENABLED=true.
-  #    Only pushes to main ever reach the Pi: PRs (including forks) never do.
+  # 5) Continuous Deployment, GitOps style. Flux on the Pi deploys whatever
+  #    the `deploy` branch holds (k8s/flux/). Only this job writes that branch,
+  #    and only after every job above passed, so untested changes never reach
+  #    the Pi. The branch holds just k8s/ from this run's commit, with the
+  #    image pinned to it: exactly what Flux applies, and no workflow files
+  #    (which this token isn't allowed to push).
+  #    Least privilege per job: this one may push commits but not packages;
+  #    publish may push packages but not commits.
   deploy:
     needs: publish
-    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, linux, ARM64, pi]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: write
+    # Never let two deploys race each other.
+    concurrency:
+      group: gitops-deploy
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - name: Deploy the image that was just published
+      - uses: actions/checkout@v4 # the exact commit this run tested
+      - name: Pin the image that was just published
         run: |
-          mkdir -p overlay
-          cat > overlay/kustomization.yaml <<EOF
-          apiVersion: kustomize.config.k8s.io/v1beta1
-          kind: Kustomization
-          resources:
-            - ../k8s/overlays/pi
+          cat >> k8s/overlays/pi/kustomization.yaml <<EOF
+
           images:
             - name: $IMAGE
-              newTag: ${{ github.sha }}
+              newTag: "$GITHUB_SHA"
           EOF
-          kubectl apply -k overlay
-          kubectl -n portfolio rollout status deployment/portfolio --timeout=300s
-      - name: Check the site answers on the Pi
+          kubectl kustomize k8s/overlays/pi | grep -q "image: $IMAGE:$GITHUB_SHA"
+      - name: Publish k8s/ to the deploy branch (Flux picks it up within a minute)
         run: |
-          for i in $(seq 1 15); do curl -fsS http://localhost:57738/healthz && break; sleep 2; done
-          curl -fsS http://localhost:57738/version.json | grep -q "${{ github.sha }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q --orphan deploy
+          git read-tree --empty
+          git add k8s
+          git commit -qm "deploy: ${GITHUB_SHA::7}" -m "k8s/ from $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
+          git push --force origin HEAD:refs/heads/deploy

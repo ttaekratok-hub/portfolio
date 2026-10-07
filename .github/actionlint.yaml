@@ -1,4 +1,0 @@
-self-hosted-runner:
-  # Custom label of the self-hosted runner on the Raspberry Pi 5.
-  labels:
-    - pi
