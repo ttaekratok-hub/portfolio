@@ -15,7 +15,7 @@
 // prefers-reduced-motion: reduce": the hero becomes a still image right away,
 // no reload needed (useMediaQuery follows the setting live).
 import { useEffect, useRef, useState } from "react";
-import { useMediaQuery } from "../hooks";
+import { useIsBrowser, useMediaQuery } from "../hooks";
 
 // An interface describes an object's shape. Like all types, it's checked at
 // compile time and erased from the JavaScript the browser gets.
@@ -44,6 +44,9 @@ export function FlowField() {
   // so the button below re-renders when they change.
   const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const [paused, setPaused] = useState(false);
+  // The button only works once JavaScript runs, so it's left out of the
+  // pre-rendered HTML (no dead control before hydration or without JS).
+  const isBrowser = useIsBrowser();
 
   // The drawing code lives in a long-running effect (below) that must not be
   // torn down and set up again when these change: that would throw away the
@@ -204,9 +207,16 @@ export function FlowField() {
 
     // After the canvas was cleared (resize, color change), a running animation
     // repaints itself; otherwise draw a still image so the hero isn't blank.
+    // Off-screen with the animation on, there's nothing to do: the observer
+    // restarts it on the way back. The still image is 360 frames of work, so
+    // it waits until resizing has paused for 150ms ("debouncing") instead of
+    // being redrawn for every step of a window drag.
+    let stillTimer = 0;
     function repaint() {
-      if (running()) start();
-      else drawStill();
+      if (running()) return start();
+      if (!onScreen && !pausedRef.current && !reduceMotionRef.current) return;
+      window.clearTimeout(stillTimer);
+      stillTimer = window.setTimeout(drawStill, 150);
     }
 
     // IntersectionObserver calls back when the canvas scrolls into or out of
@@ -251,6 +261,7 @@ export function FlowField() {
       observer?.disconnect();
       darkScheme?.removeEventListener("change", onSchemeChange);
       window.removeEventListener("resize", onResize);
+      window.clearTimeout(stillTimer);
       startRef.current = () => {};
     };
   }, []);
@@ -259,11 +270,11 @@ export function FlowField() {
   // The canvas is pure decoration, so aria-hidden hides it from screen readers;
   // the button is a real control. Its accessible name says what it will do and
   // changes with the state. It's not rendered with Reduce Motion (no motion to
-  // stop); useMediaQuery is false during pre-rendering, so the HTML includes it.
+  // stop), nor in the pre-rendered HTML (isBrowser is false there).
   return (
     <>
       <canvas ref={canvasRef} className="flow-field" aria-hidden="true" />
-      {!reduceMotion && (
+      {isBrowser && !reduceMotion && (
         <button
           type="button"
           className="motion-toggle"

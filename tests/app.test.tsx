@@ -16,7 +16,7 @@
 //   findBy...  waits for it (up to 1 second by default); returns a Promise
 //   screen     searches the whole document; within(el) only inside el
 // Learn more: https://testing-library.com/docs/queries/about
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { act, StrictMode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { render, screen, within } from "@testing-library/react";
@@ -74,45 +74,61 @@ describe("the page", () => {
   });
 });
 
-// The production path, end to end: render the page to HTML exactly as the
-// build does (entry-server.tsx), put that HTML in the DOM, then hydrate it as
-// main.tsx does. If the first browser render differs from the HTML (a
-// "hydration mismatch", e.g. from Math.random() or Date in a render), React
-// reports it through onRecoverableError and console.error, and this test
+// The production path, end to end: put pre-rendered HTML in the DOM, then
+// hydrate it as main.tsx does. If the first browser render differs from the
+// HTML (a "hydration mismatch", e.g. from Math.random() or Date in a render),
+// React reports it through onRecoverableError and console.error, and the test
 // fails. act() runs React's work, effects included, before the checks.
+async function expectCleanHydration(html: string) {
+  // Tells React this is a test environment where act() is used. Testing
+  // Library sets it only around its own helpers, and this calls hydrateRoot
+  // directly.
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  const problems: unknown[] = [];
+  const consoleError = vi.spyOn(console, "error").mockImplementation((...args) => problems.push(args));
+
+  const root = await act(async () =>
+    hydrateRoot(
+      container,
+      <StrictMode>
+        <App />
+      </StrictMode>,
+      { onRecoverableError: (error) => problems.push(error) },
+    ),
+  );
+
+  // try/finally: clean up even when a check fails, so the next test doesn't
+  // find a second copy of the page in the document.
+  try {
+    expect(problems).toEqual([]);
+    // After hydration, useIsBrowser turns true and the real link appears.
+    expect(within(container).getByRole("link", { name: /Email/ })).toHaveAttribute("href", "mailto:ttaekratok@gmail.com");
+  } finally {
+    act(() => root.unmount());
+    consoleError.mockRestore();
+    container.remove();
+  }
+}
+
 describe("hydration", () => {
-  test("hydrates the pre-rendered HTML without a mismatch, then adds the email", async () => {
-    // Tells React this is a test environment where act() is used. Testing
-    // Library sets it only around its own helpers, and this test calls
-    // hydrateRoot directly.
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    const container = document.createElement("div");
-    container.innerHTML = renderToHtml();
-    document.body.appendChild(container);
-    const problems: unknown[] = [];
-    const consoleError = vi.spyOn(console, "error").mockImplementation((...args) => problems.push(args));
+  // HTML rendered right here with entry-server's render(). Fast, no build
+  // needed, and it catches mismatches that don't depend on where the HTML was
+  // rendered. But this file runs in jsdom, where `window` exists, so it can't
+  // catch code that checks `typeof window` while rendering.
+  test("hydrates freshly rendered HTML without a mismatch, then adds the email", async () => {
+    await expectCleanHydration(renderToHtml());
+  });
 
-    const root = await act(async () =>
-      hydrateRoot(
-        container,
-        <StrictMode>
-          <App />
-        </StrictMode>,
-        { onRecoverableError: (error) => problems.push(error) },
-      ),
-    );
-
-    // try/finally: clean up even when a check fails, so the next test doesn't
-    // find a second copy of the page in the document.
-    try {
-      expect(problems).toEqual([]);
-      // After hydration, useIsBrowser turns true and the real link appears.
-      expect(within(container).getByRole("link", { name: /Email/ })).toHaveAttribute("href", "mailto:ttaekratok@gmail.com");
-    } finally {
-      act(() => root.unmount());
-      consoleError.mockRestore();
-      container.remove();
-    }
+  // The HTML the build actually ships: rendered in plain Node by
+  // scripts/prerender.mjs, with no window or document, exactly what visitors
+  // download. DOMParser pulls out what's inside <div id="root">. Skipped until
+  // `npm run build` has made dist/; CI builds before it tests.
+  test.skipIf(!existsSync("dist/index.html"))("hydrates the built page's HTML without a mismatch", async () => {
+    const page = new DOMParser().parseFromString(readFileSync("dist/index.html", "utf8"), "text/html");
+    await expectCleanHydration(page.getElementById("root")!.innerHTML);
   });
 });
 

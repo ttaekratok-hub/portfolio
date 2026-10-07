@@ -72,7 +72,10 @@ export function Projects() {
           an arrow function, so setFilter(id) runs on click, not during render.
           On narrow screens .segmented-scroller lets the row scroll sideways, and
           onFocus scrolls a keyboard-focused button fully into view (Chromium
-          doesn't for a partly visible one). "nearest" scrolls as little as
+          doesn't for a partly visible one). Only keyboard focus: a tap also
+          focuses the button, on pointerdown, and scrolling then would slide it
+          out from under the finger before the click lands. :focus-visible is the
+          browser's own "focused by keyboard" test. "nearest" scrolls as little as
           possible; the `?.` skips it in the test DOM, which lacks the method. */}
       <div className="segmented-scroller">
         <div className="segmented" role="group" aria-label="Filter projects">
@@ -83,7 +86,11 @@ export function Projects() {
               className="segment"
               aria-pressed={filter === id}
               onClick={() => setFilter(id)}
-              onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" })}
+              onFocus={(e) => {
+                if (e.currentTarget.matches(":focus-visible")) {
+                  e.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+                }
+              }}
             >
               {label}
             </button>

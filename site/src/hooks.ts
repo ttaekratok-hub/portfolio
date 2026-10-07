@@ -13,7 +13,7 @@
 // render matches the pre-rendered HTML exactly; React then re-renders with the
 // real browser value. That's what makes these hydration-safe.
 // Learn more: https://react.dev/reference/react/useSyncExternalStore
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 // Being in the browser never changes, so there's nothing to listen to. Defined
 // outside any component so it's the same function on every render; a new one
@@ -42,14 +42,22 @@ export function useIsBrowser(): boolean {
  * Example: const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
  */
 export function useMediaQuery(query: string): boolean {
-  return useSyncExternalStore(
-    (onChange) => {
+  // useCallback returns the same function on every render until `query`
+  // changes, so React keeps one subscription instead of unsubscribing and
+  // subscribing again each time (the same reason noSubscription lives outside
+  // useIsBrowser above).
+  const subscribe = useCallback(
+    (onChange: () => void) => {
       // matchMedia evaluates a media query from JavaScript; its "change" event
       // fires when the answer flips. jsdom (the test DOM) has no matchMedia.
       const list = window.matchMedia?.(query);
       list?.addEventListener("change", onChange);
       return () => list?.removeEventListener("change", onChange);
     },
+    [query],
+  );
+  return useSyncExternalStore(
+    subscribe,
     () => window.matchMedia?.(query).matches ?? false,
     () => false,
   );

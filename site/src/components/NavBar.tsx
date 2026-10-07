@@ -18,11 +18,19 @@ export function NavBar() {
     // IntersectionObserver reports when elements enter or leave an area of the
     // screen, without having to check on every scroll event. The hero (#top)
     // is watched too: when it's back in view, no section is current.
+    // The last section can be too short to ever reach that band on a tall
+    // screen, because the page can't scroll any further. So scrolled all the
+    // way down also counts as "the last section is current". It's checked after
+    // every observer callback and scroll event: an instant jump (Reduce Motion,
+    // a #contact link) fires both, and the observer's report arrives last.
+    const lastId = SECTIONS[SECTIONS.length - 1]!.id;
+    const atBottom = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) setCurrent(entry.target.id === "top" ? null : entry.target.id);
         }
+        if (atBottom()) setCurrent(lastId);
       },
       // A section counts as current while it crosses the upper-middle of the screen.
       // rootMargin shrinks the area being watched: 40% off the top and 55% off
@@ -33,16 +41,14 @@ export function NavBar() {
       const section = document.getElementById(id);
       if (section) observer.observe(section);
     }
-    // The last section can be too short to ever reach that band on a tall
-    // screen, because the page can't scroll any further. So scrolled all the
-    // way down also counts as "the last section is current". { passive: true }
-    // promises the listener never cancels scrolling, so the browser can scroll
-    // smoothly without waiting for it.
-    const lastId = SECTIONS[SECTIONS.length - 1]!.id;
+    // { passive: true } promises the listener never cancels scrolling, so the
+    // browser can scroll smoothly without waiting for it. Called once right
+    // away too, for a page opened at #contact or a restored scroll position.
     const onScroll = () => {
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) setCurrent(lastId);
+      if (atBottom()) setCurrent(lastId);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
     // Cleanup: stop observing and listening when the nav goes away.
     return () => {
       observer.disconnect();

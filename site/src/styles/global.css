@@ -208,9 +208,12 @@ a:hover {
   scrollbar-width: none;
 }
 
+/* min-width/min-height: every link is at least a 44pt square, even "Art". */
 .nav-links a {
   display: flex;
   align-items: center;
+  justify-content: center;
+  min-width: var(--hit-target);
   min-height: var(--hit-target);
   padding: 0 var(--space-4);
   border-radius: var(--radius-capsule);
@@ -479,7 +482,7 @@ a:hover {
     overflow-x: auto;
     scrollbar-width: none;
     scroll-padding-inline: 48px;
-    mask-image: linear-gradient(to right, transparent, #000 var(--space-5), #000 calc(100% - 40px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 var(--space-5), #000 calc(100% - var(--space-5)), transparent);
   }
   .segmented {
     max-width: none;
@@ -509,9 +512,15 @@ a:hover {
 }
 /* Projects.tsx sets aria-pressed on the active filter: screen readers say
    "pressed", and this rule draws the thumb from the same attribute. */
+/* The thumb also gets a 1px edge (the inset box-shadow): the fill alone is
+   only 1.3:1 against the track in light mode, and WCAG 1.4.11 asks for 3:1
+   for whatever shows a control's state. box-shadow, not outline, so it never
+   competes with the keyboard focus ring (an outline). */
 .segment[aria-pressed="true"] {
   background: var(--control-thumb);
-  box-shadow: var(--control-thumb-shadow);
+  box-shadow:
+    inset 0 0 0 1px var(--label-secondary),
+    var(--control-thumb-shadow);
   font-weight: 600;
 }
 
@@ -569,9 +578,12 @@ a:hover {
   padding: var(--space-2) 0 0;
   list-style: none;
 }
+/* border-radius 13px is half a one-line chip's height, so a chip looks like a
+   capsule; a long one that wraps onto two lines becomes a rounded rectangle
+   instead of a stretched pill. */
 .tags li {
   padding: 3px var(--space-3);
-  border-radius: var(--radius-capsule);
+  border-radius: 13px;
   background: var(--fill-tertiary);
   color: var(--label);
   font-size: var(--text-footnote);
@@ -723,9 +735,8 @@ a.grouped-row:hover {
 
 .skills-grid {
   display: grid;
-  /* 260px: wide enough that the longest chip ("Routing & switching
-     fundamentals") stays on one line; min() again for tiny screens. */
-  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  /* min() again for tiny screens. */
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: var(--space-5);
   margin: var(--space-6) 0 0;
   padding: 0;
@@ -812,8 +823,7 @@ a.grouped-row:hover {
     border-color: var(--label-secondary);
   }
   .segment[aria-pressed="true"] {
-    outline: 1px solid var(--label);
-    outline-offset: -1px;
+    box-shadow: inset 0 0 0 1px var(--label);
   }
 }
 
