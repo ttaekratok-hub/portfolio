@@ -1,4 +1,5 @@
-// Everything about you in one place. Sourced from the résumé (site/public/resume.pdf).
+// Everything about you in one place. Sourced from the owner's verified
+// background brief; don't add claims that aren't confirmed there.
 //
 // Components import these constants instead of hard-coding text, so content
 // changes happen here and the layout code stays untouched. The values are
@@ -12,14 +13,17 @@
 export const PROFILE = {
   name: "Tichakorn Taekratok",
   nickname: "Tweety",
-  role: "Software & Infrastructure Engineer · Technical Artist",
+  role: "Software, Cloud & Infrastructure Engineer · Technical Artist",
   intro:
     "I build and run reliable systems, from Kubernetes clusters and CI/CD pipelines to network labs, and I make art and real-time visuals.",
   about: [
-    "I’m a Computer Science graduate from Oregon State University (B.S., Summa Cum Laude, 3.87 GPA), based in Corvallis, Oregon. I work as a Business Analyst at Western Digital, turning proposed system changes into clear, testable requirements. I also host and maintain production websites for three clients, and I run my own k3s Kubernetes cluster, which serves this site.",
-    "I’m looking for software engineering, infrastructure and technical art roles.",
+    "I started in Robotics and AI at KMITL in Bangkok, programming STM32 and Arduino microcontrollers, PLC ladder logic and ABB industrial robots. I then transferred to Oregon State University and graduated in Computer Science (B.S., Summa Cum Laude, 3.87 GPA) while working about 20 hours a week.",
+    "Since then I’ve focused on infrastructure. I built and run my own Kubernetes platform, which serves this site and live client sites, and I build and host websites for three clients. I also work as a Business Analyst at Western Digital, turning stakeholder needs into testable requirements for engineering teams in several regions.",
+    "I’m interested in cloud, DevOps and site reliability, software engineering, and network and data-center operations, and I make art and real-time visuals on the side.",
   ],
   location: "Corvallis, OR",
+  relocation: "Open to relocating anywhere in the U.S.",
+  workStatus: "U.S. citizen, no sponsorship needed, eligible for a security clearance (U.S. Person for ITAR purposes).",
   email: "ttaekratok@gmail.com",
   // `display` is what people read; `href` is a tel: link in international
   // format, which opens the dialer on a phone.
@@ -30,22 +34,103 @@ export const PROFILE = {
 
 // ReadonlyArray<{ ... }>: an array of objects with exactly these fields, which
 // other code may read but not modify (TypeScript rejects push() or replacing an
-// item; like all types, it's a compile-time check). An entry with a missing or
-// misspelled field is flagged too.
-export const TIMELINE: ReadonlyArray<{ title: string; org: string; when: string }> = [
-  { title: "Business Analyst 1, Programming", org: "Western Digital", when: "May 2026 – now" },
-  { title: "Freelance Web Developer & Systems Administrator", org: "Corvallis, OR (part-time)", when: "May 2026 – now" },
-  { title: "B.S. Computer Science (Applied CS)", org: "Oregon State University · Summa Cum Laude", when: "2021 – 2025" },
-  { title: "Robotics and AI", org: "King Mongkut’s Institute of Technology Ladkrabang, Bangkok", when: "2020 – 2021" },
-  { title: "AWS Certified Solutions Architect – Associate", org: "Amazon Web Services", when: "In progress" },
-  { title: "Pre Security", org: "TryHackMe (Cyber Security 101 in progress)", when: "Completed" },
+// item; like all types, it's a compile-time check). `?` marks optional fields.
+export interface Job {
+  title: string;
+  org: string;
+  when: string;
+  points: string[];
+  links?: Array<{ label: string; href: string }>;
+}
+
+export const EXPERIENCE: ReadonlyArray<Job> = [
+  {
+    title: "Business Analyst 1, Programming",
+    org: "Western Digital",
+    when: "May 2026 – now",
+    points: [
+      "Translate stakeholder needs into implementable, testable software and system requirements for engineering teams in multiple international regions",
+      "Assess the technical feasibility of proposed system changes",
+      "Support software deployment workflows",
+      "Audit operational data integrity and process quality against acceptance criteria",
+    ],
+  },
+  {
+    title: "Freelance Web Developer & Systems Administrator",
+    org: "Part-time, about 20 hours a week",
+    when: "May 2026 – now",
+    points: [
+      "Build and maintain production websites for three clients on Linux servers with nginx",
+      "Built an admin interface for notemari.com so its non-technical owner can manage content herself",
+    ],
+    links: [
+      { label: "cnhstudy.academy", href: "https://cnhstudy.academy" },
+      { label: "reneecoco.thezerooneschool.com", href: "https://reneecoco.thezerooneschool.com" },
+      { label: "notemari.com", href: "https://notemari.com" },
+    ],
+  },
+  {
+    title: "Self-directed engineering study",
+    org: "While working part-time in retail",
+    when: "Jun 2025 – May 2026",
+    points: ["Built my Kubernetes platform from the ground up"],
+  },
 ];
 
+export const EDUCATION: ReadonlyArray<{ school: string; degree: string; when: string; points: string[]; coursework: string[] }> = [
+  {
+    school: "Oregon State University",
+    degree: "B.S. Computer Science (Applied CS option)",
+    when: "Sep 2021 – Jun 2025",
+    points: [
+      "GPA 3.87, Summa Cum Laude",
+      "Honor Roll, Fall 2021 – Winter 2025; Merit Scholarship",
+      "Worked about 20 hours a week throughout",
+    ],
+    coursework: [
+      "Data Structures",
+      "Analysis of Algorithms",
+      "Computer Architecture & Assembly",
+      "Intro to Databases",
+      "Web Development",
+      "Software Engineering I & II",
+      "Intro to Security",
+      "Computer Networks",
+      "Defense Against the Dark Arts",
+      "Operating Systems",
+      "System Administration",
+      "Parallel Programming",
+    ],
+  },
+  {
+    school: "King Mongkut’s Institute of Technology Ladkrabang (KMITL), Bangkok",
+    degree: "Robotics and AI",
+    when: "2020 – 2021",
+    points: ["One year before transferring to Oregon State"],
+    coursework: [
+      "Embedded systems",
+      "Microcontrollers (STM32, Arduino)",
+      "Mitsubishi PLC ladder logic",
+      "ABB 6-axis industrial robots",
+    ],
+  },
+];
+
+export const CERTIFICATIONS: ReadonlyArray<{ name: string; org: string; status: "Completed" | "In progress" }> = [
+  { name: "Solutions Architect – Associate (SAA-C03)", org: "AWS Certified", status: "In progress" },
+  { name: "Pre Security (SEC0)", org: "TryHackMe", status: "Completed" },
+  { name: "Cyber Security 101 (SEC1)", org: "TryHackMe", status: "In progress" },
+];
+
+// Only skills the owner has confirmed. OSPF, SNMP and MikroTik RouterOS join
+// Networking once the network lab is finished.
 export const SKILLS: ReadonlyArray<{ group: string; items: string[] }> = [
-  { group: "Platforms", items: ["Kubernetes (k3s)", "Docker", "nginx", "Linux (Ubuntu, Kali)", "Proxmox VE", "MikroTik RouterOS v7", "Windows Server"] },
-  { group: "Automation", items: ["Python", "Bash", "Ansible", "Terraform", "Git", "GitHub Actions CI/CD"] },
-  { group: "Networking", items: ["TCP/IP & subnetting", "OSPF", "DNS", "SNMP", "Firewall rules", "Routing & switching fundamentals"] },
-  { group: "Troubleshooting", items: ["Wireshark", "Nmap", "traceroute & ping", "dig", "snmpwalk"] },
+  { group: "Languages", items: ["Python", "C", "C++", "Bash", "SQL", "Dart / Flutter", "x86 Assembly"] },
+  { group: "Cloud & DevOps", items: ["AWS (S3)", "Kubernetes (k3s)", "Docker", "GitHub Actions CI/CD", "Terraform", "Ansible", "Git (branching, pull requests, code review)"] },
+  { group: "Systems", items: ["Linux (Ubuntu, Kali)", "Proxmox VE", "nginx", "Windows Server", "Active Directory"] },
+  { group: "Networking", items: ["TCP/IP", "DNS", "HTTP / TLS", "Wireshark", "Nmap"] },
+  { group: "Data", items: ["SQL & relational design", "Entity-relationship diagrams", "NoSQL (Firebase)"] },
+  { group: "Ways of working", items: ["Requirements analysis", "Technical documentation", "Cross-region stakeholders", "Claude Code (AI-assisted development)"] },
 ];
 
 // The sections in the nav bar, in page order. NavBar.tsx turns each into a

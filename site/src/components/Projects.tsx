@@ -7,14 +7,52 @@
 // JavaScript, and tsconfig's verbatimModuleSyntax requires the marker.
 import { useState } from "react";
 import { FILTERS, PROJECTS, type Filter, type Project } from "../data/projects";
+import { K3sDiagram, NetworkLabDiagram } from "./Diagrams";
+
+// Which component draws each diagram named in data/projects.ts.
+const DIAGRAMS = { k3s: K3sDiagram, "network-lab": NetworkLabDiagram };
 
 // Used only in this file, so it isn't exported. `{ project }: { project: Project }`
 // unpacks the props and types them with the Project interface.
 function ProjectCard({ project }: { project: Project }) {
+  // A component chosen at runtime: JSX needs a capitalized name, so it's
+  // stored in a capitalized variable first. undefined means no diagram.
+  const Diagram = project.diagram ? DIAGRAMS[project.diagram] : undefined;
   return (
-    <li className="card">
-      <h3 className="card-title">{project.title}</h3>
+    // Cards with a diagram span the whole row (card-wide in global.css).
+    <li className={Diagram ? "card card-wide" : "card"}>
+      <div className="card-heading">
+        <h3 className="card-title">{project.title}</h3>
+        <p className="card-meta">
+          {project.status && <span className="status">{project.status}</span>}
+          {project.year}
+        </p>
+      </div>
       <p className="card-body">{project.summary}</p>
+      {project.highlights && (
+        <ul className="points">
+          {project.highlights.map((point) => (
+            <li key={point}>{point}</li>
+          ))}
+        </ul>
+      )}
+      {/* The diagram scrolls sideways on narrow screens instead of shrinking
+          its text until it's unreadable. A scrollable box must be reachable by
+          keyboard so it can be scrolled with the arrow keys (WCAG 2.1.1), hence
+          tabIndex on a <section>, named by aria-label. That's the one case the
+          jsx-a11y rule below doesn't know about, so it's switched off here only. */}
+      {Diagram && (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        <section className="diagram-scroller" tabIndex={0} aria-label={`${project.title} diagram`}>
+          <Diagram />
+        </section>
+      )}
+      {/* Shown only on screens too narrow for the whole diagram (global.css). */}
+      {Diagram && (
+        <p className="diagram-hint" aria-hidden="true">
+          Swipe to see the whole diagram →
+        </p>
+      )}
       <ul className="tags" aria-label="Built with">
         {project.tech.map((tech) => (
           <li key={tech}>{tech}</li>
