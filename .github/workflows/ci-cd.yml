@@ -55,8 +55,9 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  # 1) Continuous Integration: lint + typecheck, tests, then a production
-  #    build whose pre-rendered HTML is validated. These are the same npm
+  # 1) Continuous Integration: lint + typecheck, a production build, then the
+  #    tests (some check the built page) and HTML validation of the
+  #    pre-rendered output. These are the same npm
   #    scripts you can run locally (package.json). Steps run top to bottom and
   #    the job stops at the first failing one.
   test:
@@ -74,8 +75,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npm test
       - run: npm run build
+      - run: npm test
       - run: npm run validate:html
 
   # 2) Build the Docker image and smoke-test the container

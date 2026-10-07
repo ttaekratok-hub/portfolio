@@ -25,14 +25,15 @@ const app = (
 //   React "hydrates" it: it walks the existing DOM, attaches event handlers and
 //   starts effects instead of redrawing. This only works if the first browser
 //   render produces exactly that HTML; components/Contact.tsx shows how to
-//   handle a value that must differ (useIsBrowser).
+//   handle a value that must differ (useIsBrowser in hooks.ts).
 // - createRoot: #root is empty, so React builds the DOM from scratch.
-// Note: `npm run dev` serves site/index.html without pre-rendering, but #root
-// still holds the <!--app-html--> placeholder, and a comment counts as a child
-// node. So dev takes the hydrate path: React finds no matching HTML, logs a
-// "Hydration failed" error in the console, then renders from scratch.
+// `npm run dev` serves site/index.html without pre-rendering, so #root holds
+// only the <!--app-html--> placeholder comment. firstElementChild looks for an
+// element and ignores comments and text, so dev correctly takes the createRoot
+// path. (hasChildNodes() would count the comment, try to hydrate nothing, and
+// log a "Hydration failed" error.)
 // Learn more: https://react.dev/reference/react-dom/client/hydrateRoot
-if (root.hasChildNodes()) {
+if (root.firstElementChild) {
   hydrateRoot(root, app);
 } else {
   createRoot(root).render(app);

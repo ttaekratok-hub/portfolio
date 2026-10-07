@@ -30,8 +30,10 @@ export function Hero() {
           </a>
           {/* site/public/ is copied into the site as-is, so /resume.pdf is
               site/public/resume.pdf. tests/app.test.tsx fails if a local link
-              points at a missing file. `glass` adds the Liquid Glass material. */}
-          <a className="button button-glass glass" href="/resume.pdf">
+              points at a missing file. button-gray, not glass: this button
+              scrolls with the page, and Liquid Glass is only for controls that
+              float above it (global.css explains). */}
+          <a className="button button-gray" href="/resume.pdf">
             Résumé (PDF)
           </a>
         </div>

@@ -143,8 +143,10 @@ run inline ones.)
 - *Type:* the HIG iOS text styles. Apple devices render real SF Pro through the
   system font; Apple's license doesn't allow serving SF as a web font, so other
   devices get Inter, its closest open-source match.
-- *Liquid Glass* (`site/src/styles/glass.css`) only on the floating controls
-  (nav, segmented control, a button), never on content, as the HIG asks. It's
+- *Liquid Glass* (`site/src/styles/glass.css`) only on the floating nav, the one
+  control that stays above the content as it scrolls, as the HIG asks. The
+  project filter and the résumé button scroll with the page, so they use iOS's
+  standard gray fills instead (glass there would stack under the glass nav). It's
   built on `backdrop-filter`, a CSS effect applied to whatever is behind an
   element: real refraction where the browser supports it (Chromium: Chrome,
   Edge), frosted blur elsewhere, and a solid surface for Reduce Transparency /
@@ -220,7 +222,7 @@ Pull requests stop after `k8s-smoke-test`; only pushes to `main` publish and dep
 
 | Job | What it teaches |
 |-----|-----------------|
-| `test` | CI basics: checkout, caching, `npm ci`, failing fast. Lint + typecheck, tests, production build, HTML validation |
+| `test` | CI basics: checkout, caching, `npm ci`, failing fast. Lint + typecheck, production build, tests (incl. the built page), HTML validation |
 | `build` | Multi-stage Docker builds (Node build → nginx), build args, layer caching, container smoke tests, artifacts between jobs |
 | `k8s-smoke-test` | Spins up a throwaway Kubernetes cluster with **kind** inside the runner, deploys the same Pi overlay used in production, waits for the rollout and curls the Service. Free, no cloud account. |
 | `publish` | Multi-architecture builds (buildx): pushes an x86 + arm64 image to GitHub Container Registry, tagged with the commit SHA. The Node stage runs natively (`--platform=$BUILDPLATFORM`); only the nginx stage's one `RUN` step (writing `version.json`) runs under QEMU emulation |

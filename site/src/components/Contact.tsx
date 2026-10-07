@@ -1,37 +1,12 @@
 // The Contact section and the page footer. Both show something the
 // pre-rendered HTML can't contain, and each uses a hydration-safe pattern for
 // it (hydration needs the first browser render to match that HTML exactly):
-//   - Contact: useSyncExternalStore with a separate "server" value (useIsBrowser).
+//   - Contact: useIsBrowser (hooks.ts), which has a separate "server" value.
 //   - Footer: state that starts empty, then an effect fills it in.
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { PROFILE } from "../data/profile";
+import { useIsBrowser } from "../hooks";
 import { Chevron, Row } from "./Lists";
-
-// useSyncExternalStore's first argument subscribes to changes and returns an
-// "unsubscribe" function. Being in the browser never changes, so there's
-// nothing to subscribe to. It's defined outside the component so it's the same
-// function on every render; a new one each time would make React re-subscribe.
-const noSubscription = () => () => {};
-
-/**
- * false while pre-rendering and hydrating, true once running in the browser.
- *
- * A custom hook: a function whose name starts with `use` and that calls other
- * hooks. useSyncExternalStore reads a value from outside React. The second
- * argument gives the browser value; the third (getServerSnapshot) is used on
- * the server and during hydration. So the first browser render matches the
- * pre-rendered HTML, and React then re-renders with `true`. In a plain client
- * render with nothing to hydrate (createRoot, as in the tests) it's `true` from
- * the start, which the useState-plus-useEffect version of this can't do.
- * Learn more: https://react.dev/reference/react/useSyncExternalStore
- */
-function useIsBrowser(): boolean {
-  return useSyncExternalStore(
-    noSubscription,
-    () => true,
-    () => false,
-  );
-}
 
 export function Contact() {
   // The email is added in the browser only, never in the pre-rendered HTML.
@@ -77,7 +52,7 @@ export function Contact() {
         </li>
         <li>
           <a className="grouped-row" href={PROFILE.linkedin}>
-            <Row title="LinkedIn" detail="tichakorn-taekratok" />
+            <Row title="LinkedIn" detail={PROFILE.linkedin.split("/in/")[1]} />
             <Chevron />
           </a>
         </li>

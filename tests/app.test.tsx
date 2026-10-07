@@ -17,10 +17,13 @@
 //   screen     searches the whole document; within(el) only inside el
 // Learn more: https://testing-library.com/docs/queries/about
 import { existsSync } from "node:fs";
+import { act, StrictMode } from "react";
+import { hydrateRoot } from "react-dom/client";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { App } from "../site/src/App";
+import { render as renderToHtml } from "../site/src/entry-server";
 import { FILTERS, PROJECTS } from "../site/src/data/projects";
 
 describe("the page", () => {
@@ -60,14 +63,56 @@ describe("the page", () => {
     }
   });
 
-  // Contact.tsx adds the email link only in the browser (useIsBrowser). There's
-  // no pre-rendered HTML to hydrate here, because render() starts React with
-  // createRoot, so the link is there from the first render; findByRole would
-  // also wait for it. tests/prerender.test.ts checks the other half: the
-  // address is missing from the pre-rendered HTML.
-  test("the email address appears only after hydration, as a mailto link", async () => {
+  // Contact.tsx adds the email link only in the browser (useIsBrowser). Here
+  // render() starts React with createRoot (no pre-rendered HTML), so the link
+  // is there from the first render; findByRole would also wait for it.
+  // tests/prerender.test.ts checks the other half: the address is missing from
+  // the pre-rendered HTML. The hydration test below covers the two together.
+  test("the email address is a mailto link in the browser", async () => {
     render(<App />);
     expect(await screen.findByRole("link", { name: /Email/ })).toHaveAttribute("href", "mailto:ttaekratok@gmail.com");
+  });
+});
+
+// The production path, end to end: render the page to HTML exactly as the
+// build does (entry-server.tsx), put that HTML in the DOM, then hydrate it as
+// main.tsx does. If the first browser render differs from the HTML (a
+// "hydration mismatch", e.g. from Math.random() or Date in a render), React
+// reports it through onRecoverableError and console.error, and this test
+// fails. act() runs React's work, effects included, before the checks.
+describe("hydration", () => {
+  test("hydrates the pre-rendered HTML without a mismatch, then adds the email", async () => {
+    // Tells React this is a test environment where act() is used. Testing
+    // Library sets it only around its own helpers, and this test calls
+    // hydrateRoot directly.
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    container.innerHTML = renderToHtml();
+    document.body.appendChild(container);
+    const problems: unknown[] = [];
+    const consoleError = vi.spyOn(console, "error").mockImplementation((...args) => problems.push(args));
+
+    const root = await act(async () =>
+      hydrateRoot(
+        container,
+        <StrictMode>
+          <App />
+        </StrictMode>,
+        { onRecoverableError: (error) => problems.push(error) },
+      ),
+    );
+
+    // try/finally: clean up even when a check fails, so the next test doesn't
+    // find a second copy of the page in the document.
+    try {
+      expect(problems).toEqual([]);
+      // After hydration, useIsBrowser turns true and the real link appears.
+      expect(within(container).getByRole("link", { name: /Email/ })).toHaveAttribute("href", "mailto:ttaekratok@gmail.com");
+    } finally {
+      act(() => root.unmount());
+      consoleError.mockRestore();
+      container.remove();
+    }
   });
 });
 
@@ -99,6 +144,8 @@ describe("project filters", () => {
     // aria-pressed is how screen readers learn which filter is on.
     expect(within(filters).getByRole("button", { name: "Networking" })).toHaveAttribute("aria-pressed", "true");
     // The visually hidden live region that announces the result.
-    expect(screen.getByText("Showing 1 project")).toBeInTheDocument();
+    expect(screen.getByText("Showing 1 Networking project")).toBeInTheDocument();
+    await userEvent.click(within(filters).getByRole("button", { name: "All" }));
+    expect(screen.getByText(`Showing all ${PROJECTS.length} projects`)).toBeInTheDocument();
   });
 });

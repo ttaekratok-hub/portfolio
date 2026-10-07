@@ -50,36 +50,53 @@ export function Projects() {
   // from `filter`, and a second piece of state could drift out of sync.
   // Learn more: https://react.dev/learn/choosing-the-state-structure
   const visible = PROJECTS.filter((p) => filter === "all" || p.categories.includes(filter));
+  // What the live region announces. Every choice gets its own wording, because
+  // screen readers only speak when the text actually changes: "Showing 1
+  // project" for two different filters in a row would be announced once.
+  const label = FILTERS.find((f) => f.id === filter)!.label;
+  const count = `${visible.length} ${visible.length === 1 ? "project" : "projects"}`;
+  const status = filter === "all" ? `Showing all ${count}` : `Showing ${visible.length} ${label} ${visible.length === 1 ? "project" : "projects"}`;
 
   return (
     <section className="section" id="projects" aria-labelledby="projects-title">
       <h2 className="section-title" id="projects-title">
         Projects
       </h2>
-      {/* A segmented control: a floating control, so it gets the glass material.
+      {/* A segmented control, styled like iOS's in-content one (a gray track, not
+          Liquid Glass: it scrolls with the page; see global.css).
           Each button is a toggle: aria-pressed tells screen readers whether it's
           on, and global.css styles .segment[aria-pressed="true"], so the state
           and the look come from one attribute. role="group" plus aria-label
           names the set. type="button" is explicit because a button's default
           type is "submit", which would submit any form around it. onClick gets
           an arrow function, so setFilter(id) runs on click, not during render.
-          On narrow screens .segmented-scroller lets the row scroll sideways. */}
+          On narrow screens .segmented-scroller lets the row scroll sideways, and
+          onFocus scrolls a keyboard-focused button fully into view (Chromium
+          doesn't for a partly visible one). "nearest" scrolls as little as
+          possible; the `?.` skips it in the test DOM, which lacks the method. */}
       <div className="segmented-scroller">
-        <div className="segmented glass" role="group" aria-label="Filter projects">
+        <div className="segmented" role="group" aria-label="Filter projects">
           {FILTERS.map(({ id, label }) => (
-            <button key={id} type="button" className="segment" aria-pressed={filter === id} onClick={() => setFilter(id)}>
+            <button
+              key={id}
+              type="button"
+              className="segment"
+              aria-pressed={filter === id}
+              onClick={() => setFilter(id)}
+              onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" })}
+            >
               {label}
             </button>
           ))}
         </div>
       </div>
       {/* A live region: when its text changes, screen readers announce it
-          ("Showing 1 project") without moving focus. "polite" waits until the
-          reader is idle. It stays in the page even while empty, because
-          changes are announced reliably only in a live region that already
-          exists. */}
+          ("Showing 1 Networking project") without moving focus. "polite" waits until the
+          reader is idle. Screen readers don't announce a live region's text on
+          page load, only later changes, so "Showing all 4 projects" is silent
+          until a filter is chosen. */}
       <p className="visually-hidden" aria-live="polite">
-        {filter === "all" ? "" : `Showing ${visible.length} ${visible.length === 1 ? "project" : "projects"}`}
+        {status}
       </p>
       {/* key gives each card a stable identity, so when the filter changes React
           knows which cards stayed, left or arrived. Titles are unique, so they

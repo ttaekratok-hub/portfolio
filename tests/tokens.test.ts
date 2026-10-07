@@ -66,7 +66,24 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-// [text token, background token]: all small text, so WCAG AA needs 4.5:1.
+// Fills like --fill-tertiary are translucent: rgb(118 118 128 / 0.12) lets
+// 88% of whatever is underneath show through. The color you actually see is
+// a blend ("alpha compositing"): for each channel, fill x alpha + below x
+// (1 - alpha). This turns "fill over background" into the hex color on screen.
+function over(fill: string, below: string): string {
+  const m = /^rgb\((\d+) (\d+) (\d+) \/ ([\d.]+)\)$/.exec(fill);
+  if (!m) return fill; // already opaque
+  const alpha = Number(m[4]);
+  const mixed = [m[1], m[2], m[3]].map((c, i) => Math.round(Number(c) * alpha + rgb(below)[i]! * (1 - alpha)));
+  return "#" + mixed.map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+// A background is a token name, or "fill over base" for a translucent fill.
+function background(theme: Record<string, string>, spec: string): string {
+  const [fill, base] = spec.split(" over ");
+  return base ? over(theme[fill!]!, theme[base]!) : theme[spec]!;
+}
+
+// [text token, background]: all small text, so WCAG AA needs 4.5:1.
 const PAIRS: Array<[string, string]> = [
   ["label", "bg"],
   ["label", "bg-elevated"],
@@ -75,15 +92,24 @@ const PAIRS: Array<[string, string]> = [
   ["tint", "bg"],
   ["tint", "bg-elevated"],
   ["on-tint", "tint-fill"],
+  // A hovered contact row and the skill/tech chips (tertiary fill on a card).
+  ["label-secondary", "fill-tertiary over bg-elevated"],
+  ["label", "fill-tertiary over bg-elevated"],
+  // The gray résumé button and the project filter track, on the page.
+  ["label", "fill over bg"],
+  ["label", "fill-tertiary over bg"],
+  // The selected filter's "thumb".
+  ["label", "control-thumb"],
 ];
 
-// Generates one test per pair and appearance: 7 pairs x 2 = 14 tests.
+// Generates one test per pair and appearance: 12 pairs x 2 = 24 tests.
 // test.each fills the %s placeholders in the name with each pair's values.
 for (const [name, theme] of [["light", light], ["dark", dark]] as const) {
   describe(`${name} appearance`, () => {
-    test.each(PAIRS)("%s on %s is at least 4.5:1", (text, background) => {
-      const ratio = contrast(theme[text]!, theme[background]!);
-      expect(ratio, `${text} ${theme[text]} on ${background} ${theme[background]}`).toBeGreaterThanOrEqual(4.5);
+    test.each(PAIRS)("%s on %s is at least 4.5:1", (text, backgroundSpec) => {
+      const bg = background(theme, backgroundSpec);
+      const ratio = contrast(theme[text]!, bg);
+      expect(ratio, `${text} ${theme[text]} on ${backgroundSpec} (${bg})`).toBeGreaterThanOrEqual(4.5);
     });
   });
 }

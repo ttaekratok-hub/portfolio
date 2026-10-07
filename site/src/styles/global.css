@@ -135,7 +135,7 @@ a:hover {
 .skip-link {
   position: fixed;
   top: var(--space-3);
-  left: var(--space-3);
+  left: max(var(--space-3), env(safe-area-inset-left));
   z-index: 100;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-capsule);
@@ -163,7 +163,11 @@ a:hover {
   z-index: 50;
   display: flex;
   justify-content: center;
-  padding: 0 var(--space-3);
+  /* env(safe-area-inset-*) is the space taken by an iPhone's notch or
+     Dynamic Island in landscape (0 elsewhere). index.html's viewport-fit=cover
+     lets the page draw edge to edge, so the side padding must make room for
+     it: max() picks whichever is larger, our gutter or the inset. */
+  padding: 0 max(var(--space-3), env(safe-area-inset-right)) 0 max(var(--space-3), env(safe-area-inset-left));
   pointer-events: none;
 }
 
@@ -178,12 +182,18 @@ a:hover {
   border-radius: var(--radius-capsule);
 }
 
+/* Sized like the other targets: the HIG asks for at least 44x44pt, which a
+   two-letter link wouldn't reach on its own. */
 .nav-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hit-target);
+  min-height: var(--hit-target);
   font-weight: 700;
   font-size: var(--text-headline);
   letter-spacing: 0.02em;
   color: var(--label);
-  margin-right: var(--space-2);
 }
 
 /* When the links don't fit, they scroll sideways inside the capsule; the
@@ -236,6 +246,23 @@ a:hover {
   }
 }
 
+/* The smallest phones (iPhone SE/mini at 375px, most Androids at 360px, and
+   320px at 400% zoom): shrink the side padding with the screen so all five
+   links fit, instead of hiding "Contact" off the edge. clamp() keeps the
+   padding between 6px and 12px; the links stay 44px tall. */
+@media (max-width: 400px) {
+  .nav-wrap {
+    padding-left: max(var(--space-2), env(safe-area-inset-left));
+    padding-right: max(var(--space-2), env(safe-area-inset-right));
+  }
+  .nav-links {
+    gap: 0;
+  }
+  .nav-links a {
+    padding: 0 clamp(6px, 2.2vw, 12px);
+  }
+}
+
 /* ---------- Buttons (capsules, 44pt tall) ---------- */
 
 /* Hovering grows a button slightly and pressing shrinks it, with the spring
@@ -260,13 +287,22 @@ a:hover {
 .button:active {
   transform: scale(0.97);
 }
-/* Filled for the main action, glass for the secondary one (Hero.tsx). */
+/* Filled for the main action, gray for the secondary one (Hero.tsx), like
+   iOS's "filled" and "gray" button styles. The gray one is not glass: it sits
+   in the page and scrolls with it (the content layer), and the HIG keeps Liquid
+   Glass for controls that float above the content, like the nav. The
+   transparent border takes no visible space, but it becomes a real outline in
+   Windows High Contrast mode (forced colors, see below), where backgrounds
+   are removed. */
 .button-filled {
   background: var(--tint-fill);
   color: var(--on-tint);
+  border: 1px solid transparent;
 }
-.button-glass {
+.button-gray {
+  background: var(--fill);
   color: var(--label);
+  border: 1px solid transparent;
 }
 
 /* ---------- Hero ---------- */
@@ -280,7 +316,8 @@ a:hover {
   display: grid;
   place-items: center;
   min-height: 100svh;
-  padding: 120px var(--space-5) var(--space-24);
+  padding: 120px max(var(--space-5), env(safe-area-inset-right)) var(--space-24)
+    max(var(--space-5), env(safe-area-inset-left));
   overflow: hidden;
   text-align: center;
 }
@@ -309,6 +346,30 @@ a:hover {
   max-width: 760px;
 }
 
+/* The pause/play button for the animation (FlowField.tsx): a round 44pt gray
+   button in the hero's bottom corner, above the canvas and its fade
+   (z-index), clear of the safe areas. */
+.motion-toggle {
+  position: absolute;
+  z-index: 1;
+  right: max(var(--space-5), env(safe-area-inset-right));
+  bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  display: grid;
+  place-items: center;
+  width: var(--hit-target);
+  height: var(--hit-target);
+  padding: 0;
+  border: 1px solid transparent; /* an outline in forced-colors mode */
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--label);
+  cursor: pointer;
+}
+.motion-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
 .eyebrow {
   color: var(--label-secondary);
   font-size: var(--text-subhead);
@@ -318,10 +379,11 @@ a:hover {
 }
 
 /* Fluid type: clamp(minimum, preferred, maximum). 11vw is 11% of the window
-   width, so the heading grows with the screen but stays between 56px and
-   112px; it scales for windows from about 510px to 1020px wide. */
+   width, so the heading grows with the screen but stays between 3.5rem and
+   7rem (56px and 112px at the default font size); it scales for windows from
+   about 510px to 1020px wide. */
 .display {
-  font-size: clamp(56px, 11vw, 112px);
+  font-size: clamp(3.5rem, 11vw, 7rem);
   line-height: 1.02;
   font-weight: 700;
   letter-spacing: var(--tracking-display);
@@ -341,7 +403,7 @@ a:hover {
   margin: var(--space-6) auto 0;
   max-width: 620px;
   color: var(--label-secondary);
-  font-size: clamp(19px, 2.4vw, 23px);
+  font-size: clamp(1.1875rem, 2.4vw, 1.4375rem);
   line-height: 1.4;
   letter-spacing: -0.01em;
 }
@@ -362,12 +424,13 @@ a:hover {
 .section {
   max-width: var(--content-width);
   margin: 0 auto;
-  padding: var(--space-24) var(--space-5) 0;
+  padding: var(--space-24) max(var(--space-5), env(safe-area-inset-right)) 0
+    max(var(--space-5), env(safe-area-inset-left));
 }
 
 /* clamp() accepts tokens too: never smaller than the HIG Large Title. */
 .section-title {
-  font-size: clamp(var(--text-large-title), 5vw, 48px);
+  font-size: clamp(var(--text-large-title), 5vw, 3rem);
   line-height: 1.1;
   font-weight: 700;
   letter-spacing: var(--tracking-title);
@@ -381,11 +444,13 @@ a:hover {
   margin-bottom: var(--space-8);
 }
 
-/* ---------- Segmented control (Liquid Glass) ---------- */
+/* ---------- Segmented control ---------- */
 
 /* The project filter in Projects.tsx: a row of toggle buttons like the iOS
-   segmented control. It's a control floating over the page, so it gets the
-   glass material; the selected segment is a solid "thumb". */
+   segmented control, with the selected segment as a solid "thumb". It sits in
+   the content and scrolls with it, so it uses the standard gray track iOS uses
+   for in-content segmented controls, not Liquid Glass: glass here would end up
+   stacked under the glass nav whenever you scroll (no glass on glass). */
 .segmented {
   display: inline-flex;
   max-width: 100%;
@@ -393,6 +458,8 @@ a:hover {
   padding: 3px;
   margin: var(--space-4) 0 var(--space-8);
   border-radius: var(--radius-capsule);
+  background: var(--fill-tertiary);
+  border: 1px solid transparent; /* an outline in forced-colors mode */
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -402,13 +469,16 @@ a:hover {
    and the matching padding keeps the first button lined up with the text
    above. mask-image fades the ends (black = visible, transparent = hidden)
    to hint there's more; the left fade sits in the padding, so it only shows
-   once you've scrolled. The whole glass capsule slides as one piece. */
+   once you've scrolled. The whole capsule slides as one piece.
+   scroll-padding-inline keeps a segment that's scrolled into view (Projects.tsx
+   does that on keyboard focus) clear of the faded ends. */
 @media (max-width: 640px) {
   .segmented-scroller {
     margin: 0 calc(-1 * var(--space-5));
     padding: 0 var(--space-5);
     overflow-x: auto;
     scrollbar-width: none;
+    scroll-padding-inline: 48px;
     mask-image: linear-gradient(to right, transparent, #000 var(--space-5), #000 calc(100% - 40px), transparent);
   }
   .segmented {
@@ -419,7 +489,7 @@ a:hover {
 
 /* font: inherit, because buttons don't inherit the page font by default. */
 .segment {
-  min-height: 38px;
+  min-height: var(--hit-target);
   padding: 0 var(--space-4);
   border: 0;
   border-radius: var(--radius-capsule);
@@ -455,7 +525,9 @@ a:hover {
    columns so its cards stretch to fill the row.) */
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  /* min(300px, 100%): on screens narrower than 300px plus the gutters, a
+     column may shrink to the available width instead of overflowing it. */
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: var(--space-5);
   margin: 0;
   padding: 0;
@@ -512,6 +584,12 @@ a:hover {
   gap: var(--space-4);
   font-size: var(--text-subhead);
   font-weight: 600;
+}
+/* A 44px-tall tap target around the short "Code" link text (HIG minimum). */
+.card-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target);
 }
 
 /* ---------- Art placeholders ---------- */
@@ -645,14 +723,16 @@ a.grouped-row:hover {
 
 .skills-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  /* 260px: wide enough that the longest chip ("Routing & switching
+     fundamentals") stays on one line; min() again for tiny screens. */
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: var(--space-5);
   margin: var(--space-6) 0 0;
   padding: 0;
   list-style: none;
 }
 .skills-grid .card {
-  padding: var(--space-6);
+  padding: var(--space-6) var(--space-5);
 }
 .skills-grid .tags {
   margin: 0;
@@ -667,11 +747,31 @@ a.grouped-row:hover {
 .footer {
   max-width: var(--content-width);
   margin: var(--space-24) auto 0;
-  padding: var(--space-6) var(--space-5) var(--space-12);
+  padding: var(--space-6) max(var(--space-5), env(safe-area-inset-right))
+    max(var(--space-12), env(safe-area-inset-bottom)) max(var(--space-5), env(safe-area-inset-left));
   border-top: 0.5px solid var(--separator);
   color: var(--label-secondary);
   font-size: var(--text-footnote);
   line-height: var(--leading-footnote);
+}
+
+/* ---------- Keyboard focus inside clipped containers ---------- */
+
+/* The global :focus-visible ring is drawn just outside an element. Inside a
+   container that clips its overflow (the scrolling nav links and filter row,
+   the rounded grouped lists), the outside part would be cut off, leaving a
+   sliver. These draw the ring inside the element instead (a negative offset),
+   and the first and last grouped rows round it to follow the group's corners. */
+.nav-links a:focus-visible,
+.segment:focus-visible,
+.grouped-row:focus-visible {
+  outline-offset: -3px;
+}
+.grouped > li:first-child > .grouped-row:focus-visible {
+  border-radius: var(--radius-group) var(--radius-group) 6px 6px;
+}
+.grouped > li:last-child > .grouped-row:focus-visible {
+  border-radius: 6px 6px var(--radius-group) var(--radius-group);
 }
 
 /* ---------- Continuous ("squircle") corners where supported ---------- */
@@ -698,6 +798,42 @@ a.grouped-row:hover {
   }
   .art-placeholder {
     border-radius: 24px;
+  }
+}
+
+/* ---------- Increase Contrast and forced colors ---------- */
+
+/* Increase Contrast: outline the controls whose shape is otherwise only a
+   subtle fill, and give the selected segment a visible edge. */
+@media (prefers-contrast: more) {
+  .segmented,
+  .button-gray,
+  .motion-toggle {
+    border-color: var(--label-secondary);
+  }
+  .segment[aria-pressed="true"] {
+    outline: 1px solid var(--label);
+    outline-offset: -1px;
+  }
+}
+
+/* Forced colors (Windows High Contrast and similar): the browser replaces
+   every color with a small system palette chosen by the user, and drops
+   backgrounds and shadows. Selection shown only by a fill would vanish, so the
+   selected filter and the current nav link use the system's Highlight colors
+   (forced-color-adjust: none lets us set them). The transparent borders above
+   become visible outlines here.
+   Try it: Chrome DevTools > Rendering > Emulate CSS media feature forced-colors.
+   Learn more: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/forced-colors */
+@media (forced-colors: active) {
+  .segment[aria-pressed="true"],
+  .nav-links a[aria-current="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+  .badge {
+    border: 1px solid;
   }
 }
 

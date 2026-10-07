@@ -16,11 +16,12 @@ export function NavBar() {
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return; // e.g. the test DOM (jsdom)
     // IntersectionObserver reports when elements enter or leave an area of the
-    // screen, without having to check on every scroll event.
+    // screen, without having to check on every scroll event. The hero (#top)
+    // is watched too: when it's back in view, no section is current.
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) setCurrent(entry.target.id);
+          if (entry.isIntersecting) setCurrent(entry.target.id === "top" ? null : entry.target.id);
         }
       },
       // A section counts as current while it crosses the upper-middle of the screen.
@@ -28,12 +29,25 @@ export function NavBar() {
       // the bottom leaves a thin band from 40% to 45% of the way down.
       { rootMargin: "-40% 0px -55% 0px" },
     );
-    for (const { id } of SECTIONS) {
+    for (const id of ["top", ...SECTIONS.map((s) => s.id)]) {
       const section = document.getElementById(id);
       if (section) observer.observe(section);
     }
-    // Cleanup: stop observing when the nav goes away.
-    return () => observer.disconnect();
+    // The last section can be too short to ever reach that band on a tall
+    // screen, because the page can't scroll any further. So scrolled all the
+    // way down also counts as "the last section is current". { passive: true }
+    // promises the listener never cancels scrolling, so the browser can scroll
+    // smoothly without waiting for it.
+    const lastId = SECTIONS[SECTIONS.length - 1]!.id;
+    const onScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) setCurrent(lastId);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // Cleanup: stop observing and listening when the nav goes away.
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   return (
@@ -41,10 +55,11 @@ export function NavBar() {
     // aria-label names this one "Primary".
     <header className="nav-wrap">
       <nav className="nav glass" aria-label="Primary">
-        {/* aria-label replaces the visible text for screen readers: "Back to
-            top" means more than "TT" read aloud. */}
-        <a className="nav-brand" href="#top" aria-label="Back to top">
-          TT
+        {/* The accessible name is "TT, back to top": it starts with the visible
+            text, so someone using voice control can say "click TT" (WCAG 2.5.3,
+            Label in Name), and the hidden part explains where it goes. */}
+        <a className="nav-brand" href="#top">
+          TT<span className="visually-hidden">, back to top</span>
         </a>
         <ul className="nav-links">
           {SECTIONS.map(({ id, label }) => (
@@ -53,7 +68,7 @@ export function NavBar() {
                   location; `undefined` leaves the attribute out entirely.
                   global.css styles a[aria-current="true"], so what's announced
                   and what's highlighted can't disagree. */}
-              <a href={`#${id}`} aria-current={current === id ? "true" : undefined}>
+              <a href={`#${id}`} aria-current={current === id ? "true" : undefined} onClick={() => setCurrent(id)}>
                 {label}
               </a>
             </li>

@@ -7,9 +7,15 @@
 // frame, every particle takes a small step in the direction under it and draws
 // that step as a short line, so the particles trace smooth, curving paths.
 //
+// Motion that runs for more than five seconds needs a way to stop it (WCAG
+// 2.2.2, "Pause, Stop, Hide"), so there's a pause button in the hero's corner.
+// With Reduce Motion on, the hero is a still image and the button isn't shown.
+//
 // Try it: Chrome DevTools > Rendering > "Emulate CSS media feature
-// prefers-reduced-motion: reduce", then reload: the hero becomes a still image.
-import { useEffect, useRef } from "react";
+// prefers-reduced-motion: reduce": the hero becomes a still image right away,
+// no reload needed (useMediaQuery follows the setting live).
+import { useEffect, useRef, useState } from "react";
+import { useMediaQuery } from "../hooks";
 
 // An interface describes an object's shape. Like all types, it's checked at
 // compile time and erased from the JavaScript the browser gets.
@@ -34,6 +40,25 @@ function field(x: number, y: number, t: number): number {
  * while off-screen and draws a single still frame for Reduce Motion.
  */
 export function FlowField() {
+  // Two inputs that decide whether the animation runs. Both are React values,
+  // so the button below re-renders when they change.
+  const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const [paused, setPaused] = useState(false);
+
+  // The drawing code lives in a long-running effect (below) that must not be
+  // torn down and set up again when these change: that would throw away the
+  // particles and the picture on screen. So it reads them through refs, which
+  // it can see at any time without re-running, and this small effect copies
+  // the latest values in and asks the loop to react (startRef holds its start()).
+  const pausedRef = useRef(false);
+  const reduceMotionRef = useRef(false);
+  const startRef = useRef(() => {});
+  useEffect(() => {
+    pausedRef.current = paused;
+    reduceMotionRef.current = reduceMotion;
+    startRef.current();
+  }, [paused, reduceMotion]);
+
   // A ref is a box that React keeps between renders. Passing it as
   // ref={canvasRef} (below) makes React put the real <canvas> DOM element in
   // canvasRef.current once it's on the page, so the effect can draw on it.
@@ -50,11 +75,9 @@ export function FlowField() {
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return; // no canvas support (e.g. the test DOM, see tests/setup.ts)
 
-    // matchMedia evaluates a CSS media query from JavaScript. Visitors can ask
-    // for less motion in their OS settings (Reduce Motion on Apple devices).
-    const media = (query: string) => window.matchMedia?.(query);
-    const reduceMotion = media("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    const darkScheme = media("(prefers-color-scheme: dark)");
+    // matchMedia evaluates a CSS media query from JavaScript; here it reports
+    // when the system switches between light and dark.
+    const darkScheme = window.matchMedia?.("(prefers-color-scheme: dark)");
 
     // Plain variables, not React state: they change every frame and nothing
     // React renders depends on them. useState would re-render the component on
@@ -90,13 +113,14 @@ export function FlowField() {
     // work in CSS pixels. Capped at 2 to limit the pixels painted each frame
     // (3x would be 2.25 times as many).
     // Learn more: https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
-    function resize() {
+    // Returns true if it really resized (which clears the canvas).
+    function resize(): boolean {
       const newWidth = canvas!.clientWidth;
       const newHeight = canvas!.clientHeight;
       // On phones, `resize` also fires when the URL bar slides in or out during
       // scrolling: same width, slightly different height. Ignoring height-only
       // changes that small keeps the animation from restarting mid-scroll.
-      if (newWidth === width && Math.abs(newHeight - height) < 120) return; // mobile URL bar
+      if (newWidth === width && Math.abs(newHeight - height) < 120) return false; // mobile URL bar
       width = newWidth;
       height = newHeight;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -112,6 +136,7 @@ export function FlowField() {
       }));
       ctx!.fillStyle = colors.bg;
       ctx!.fillRect(0, 0, width, height);
+      return true;
     }
 
     // One frame. Instead of clearing the canvas, it paints a nearly transparent
@@ -153,18 +178,35 @@ export function FlowField() {
     // Learn more: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame
     function loop(time: number) {
       draw(time);
-      if (onScreen) frame = requestAnimationFrame(loop);
+      if (running()) frame = requestAnimationFrame(loop);
     }
 
-    // Safe to call again: it cancels any pending frame first, so two loops
-    // never run at once.
+    // Should frames keep coming? Only while visible, not paused, and without
+    // Reduce Motion. The refs always hold the latest values.
+    function running(): boolean {
+      return onScreen && !pausedRef.current && !reduceMotionRef.current;
+    }
+
+    // 360 steps drawn at once: one still image with trails, no animation.
+    function drawStill() {
+      for (let i = 0; i < 360; i++) draw(i * 16);
+    }
+
+    // Brings the canvas in line with the current settings. Safe to call again:
+    // it cancels any pending frame first, so two loops never run at once.
+    // Paused, it simply stops scheduling frames, so the last one stays on screen.
     function start() {
       cancelAnimationFrame(frame);
-      if (reduceMotion) {
-        for (let i = 0; i < 360; i++) draw(i * 16); // one still frame, with trails
-      } else if (onScreen) {
-        frame = requestAnimationFrame(loop);
-      }
+      if (reduceMotionRef.current) drawStill();
+      else if (running()) frame = requestAnimationFrame(loop);
+    }
+    startRef.current = start;
+
+    // After the canvas was cleared (resize, color change), a running animation
+    // repaints itself; otherwise draw a still image so the hero isn't blank.
+    function repaint() {
+      if (running()) start();
+      else drawStill();
     }
 
     // IntersectionObserver calls back when the canvas scrolls into or out of
@@ -179,7 +221,7 @@ export function FlowField() {
         ? null
         : new IntersectionObserver(([entry]) => {
             onScreen = entry?.isIntersecting ?? true;
-            if (onScreen && !reduceMotion) start();
+            if (running()) start();
           });
     observer?.observe(canvas);
 
@@ -188,10 +230,15 @@ export function FlowField() {
       colors = readColors();
       width = 0; // force a full repaint in the new colors
       resize();
-      start();
+      repaint();
+    };
+    // A real resize clears the canvas; repaint so a paused or Reduce Motion
+    // hero doesn't go blank (a running one redraws itself anyway).
+    const onResize = () => {
+      if (resize()) repaint();
     };
     darkScheme?.addEventListener("change", onSchemeChange);
-    window.addEventListener("resize", resize);
+    window.addEventListener("resize", onResize);
 
     resize();
     start();
@@ -203,10 +250,37 @@ export function FlowField() {
       cancelAnimationFrame(frame);
       observer?.disconnect();
       darkScheme?.removeEventListener("change", onSchemeChange);
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", onResize);
+      startRef.current = () => {};
     };
   }, []);
 
-  // Pure decoration, so aria-hidden hides it from screen readers.
-  return <canvas ref={canvasRef} className="flow-field" aria-hidden="true" />;
+  // A fragment (<>...</>) returns two elements without an extra wrapper <div>.
+  // The canvas is pure decoration, so aria-hidden hides it from screen readers;
+  // the button is a real control. Its accessible name says what it will do and
+  // changes with the state. It's not rendered with Reduce Motion (no motion to
+  // stop); useMediaQuery is false during pre-rendering, so the HTML includes it.
+  return (
+    <>
+      <canvas ref={canvasRef} className="flow-field" aria-hidden="true" />
+      {!reduceMotion && (
+        <button
+          type="button"
+          className="motion-toggle"
+          aria-label={paused ? "Play background animation" : "Pause background animation"}
+          onClick={() => setPaused((p) => !p)}
+        >
+          {/* Pass a function to setPaused when the new value depends on the old
+              one: React hands it the current value. */}
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            {paused ? (
+              <path d="M4 2.5v11l9-5.5z" fill="currentColor" />
+            ) : (
+              <path d="M4 2.5h3v11H4zm5 0h3v11H9z" fill="currentColor" />
+            )}
+          </svg>
+        </button>
+      )}
+    </>
+  );
 }

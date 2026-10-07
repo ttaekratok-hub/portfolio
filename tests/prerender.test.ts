@@ -8,6 +8,7 @@
 // while rendering instead of inside useEffect: render() would throw here
 // before it could break `npm run build`.
 // See site/src/entry-server.tsx for how pre-rendering works.
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { render } from "../site/src/entry-server";
 import { PROJECTS } from "../site/src/data/projects";
@@ -39,6 +40,18 @@ describe("pre-rendered HTML (what crawlers and web filters see)", () => {
     expect(html).not.toMatch(/<script/i);
     expect(html).not.toMatch(/<style/i);
     expect(html).not.toMatch(/\sstyle="/i);
+  });
+
+  // The same check on the whole built page, <head> included, which is what
+  // nginx actually serves: an inline script added to site/index.html (or
+  // injected by a Vite plugin) would slip past the check above. External
+  // <script src=...> tags are fine. Skipped until `npm run build` has made
+  // dist/; CI builds before it tests, so there it always runs.
+  test.skipIf(!existsSync("dist/index.html"))("the built page is CSP-safe too", () => {
+    const page = readFileSync("dist/index.html", "utf8");
+    expect(page).not.toMatch(/<script(?![^>]*\ssrc=)/i);
+    expect(page).not.toMatch(/<style/i);
+    expect(page).not.toMatch(/\sstyle="/i);
   });
 
   // Cloudflare's email obfuscation rewrites any address it finds in the HTML,

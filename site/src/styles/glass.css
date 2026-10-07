@@ -5,10 +5,13 @@
  * controls that float above content: it blurs and bends whatever is behind
  * it, like a lens, instead of looking like a flat sticker.
  *
- * Any element with class="glass" (className in React) gets it. Three do:
- * the floating nav (NavBar.tsx), the project filter (Projects.tsx) and the
- * resume button (Hero.tsx). Most colors and the blur strength are tokens
- * from tokens.css, so the material follows light and dark mode.
+ * Any element with class="glass" (className in React) gets it. Only one
+ * does: the floating nav (NavBar.tsx), the one control that stays above the
+ * content while everything scrolls under it. The project filter and the
+ * résumé button scroll with the page, so they use standard fills instead (see
+ * global.css); as glass, they'd stack under the glass nav. Most colors and the
+ * blur strength are tokens from tokens.css, so the material follows light and
+ * dark mode.
  *
  * Apple's guidance: glass is for the floating navigation/controls layer only
  * (never content cards), used sparingly, never stacked glass-on-glass, and
@@ -131,6 +134,21 @@
 @media (prefers-contrast: more) {
   .glass {
     border-color: var(--label-secondary);
+  }
+}
+
+/* Forced colors (Windows High Contrast): the browser drops backgrounds but
+   not backdrop-filter, so the nav would stay see-through over whatever is
+   behind it. Canvas is the user's chosen page background color. */
+@media (forced-colors: active) {
+  .glass,
+  :root[data-refraction] .glass {
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass::before {
+    display: none;
   }
 }
 
