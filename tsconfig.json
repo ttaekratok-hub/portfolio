@@ -1,0 +1,74 @@
+// TypeScript configuration. This file allows comments (it's read as "JSON
+// with comments"), unlike package.json.
+//
+// In this repo TypeScript only checks; it never writes JavaScript (noEmit
+// below). Vite does the compiling, and it strips the types without checking
+// them, which keeps builds fast but means a type error wouldn't stop
+// `npm run build`. That's why `npm run lint` runs `tsc`, and CI runs lint
+// before it builds anything.
+//
+// Try it: npx tsc               (type-check everything listed in "include")
+//         npx tsc --showConfig  (the settings tsc ends up using, and every
+//                                file it checks)
+// Learn more: https://www.typescriptlang.org/tsconfig
+{
+  "compilerOptions": {
+    // The JavaScript version tsc would compile down to, rewriting newer syntax
+    // into older equivalents. Nothing is emitted here (noEmit), so Vite's
+    // build decides what browsers receive.
+    "target": "ES2022",
+    // Which built-in APIs TypeScript knows exist: modern JavaScript (ES2023),
+    // and the browser's DOM (document, window, HTMLElement...). DOM.Iterable
+    // (for...of over a NodeList, as tests/app.test.tsx does) is part of DOM
+    // since TypeScript 6; listing it does no harm.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // Keep import/export as written: ES modules, which Vite and Node both run.
+    "module": "ESNext",
+    // How an import is matched to a file: the way bundlers like Vite do it.
+    // Relative imports need no file extension (`./App`, not `./App.tsx`), and
+    // packages are found through their package.json "exports" map.
+    "moduleResolution": "bundler",
+    // JSX uses the automatic runtime: `<div>` becomes a call to a function
+    // imported from react/jsx-runtime, so files don't need `import React`.
+    "jsx": "react-jsx",
+    // Packages whose global types are loaded. vite/client teaches TypeScript
+    // about Vite features, like the CSS files App.tsx imports; node adds
+    // Node.js APIs (node:fs, process) for the tests and configs.
+    "types": ["vite/client", "node"],
+    // A family of checks. The most important is strictNullChecks: a value
+    // that may be null or undefined must be checked before use. That's what
+    // the `!` (non-null assertion) in main.tsx and the tests is about: it tells
+    // TypeScript "I know this isn't null here". Another is noImplicitAny: a
+    // parameter whose type TypeScript can't work out is an error, instead of
+    // silently becoming `any` (which turns type checking off for it).
+    "strict": true,
+    // Leftover variables and parameters are errors, not clutter.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    // A switch case that forgets `break` and runs into the next one is an
+    // error. There's no switch yet; this guards future ones.
+    "noFallthroughCasesInSwitch": true,
+    // Reading an array element or a record entry by index (list[0],
+    // colors[name]) gives `T | undefined`, because the index may not exist.
+    // Without it, TypeScript assumes it always does. The tests mark the spots
+    // where a value is known to be there: `m[1]!`, `theme[text]!`.
+    "noUncheckedIndexedAccess": true,
+    // Imports are kept or removed exactly as written. An import used only as a
+    // type must say so (`import { type Project }`, see Projects.tsx), because
+    // tools that compile one file at a time can't tell types from values and
+    // need to know which imports to delete.
+    "verbatimModuleSyntax": true,
+    // Flags code that a one-file-at-a-time compiler like Vite's can't handle
+    // correctly, such as re-exporting a type without the `type` marker.
+    "isolatedModules": true,
+    // Don't type-check declaration (.d.ts) files, which here all come from
+    // node_modules: faster, and a clash between two libraries' types isn't
+    // ours to fix.
+    "skipLibCheck": true,
+    // Check only; never write .js files.
+    "noEmit": true
+  },
+  // What `tsc` checks: the app, the tests and the build configs. The .js and
+  // .mjs files (eslint.config.js, scripts/) are linted but not type-checked.
+  "include": ["site/src", "tests", "vite.config.ts", "vitest.config.ts"]
+}

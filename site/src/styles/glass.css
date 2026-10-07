@@ -1,0 +1,161 @@
+/*
+ * Liquid Glass material for the web.
+ *
+ * Liquid Glass is the translucent material Apple introduced in 2025 for
+ * controls that float above content: it blurs and bends whatever is behind
+ * it, like a lens, instead of looking like a flat sticker.
+ *
+ * Any element with class="glass" (className in React) gets it. Only one
+ * does: the floating nav (NavBar.tsx), the one control that stays above the
+ * content while everything scrolls under it. The project filter and the
+ * résumé button scroll with the page, so they use standard fills instead (see
+ * global.css); as glass, they'd stack under the glass nav. Most colors and the
+ * blur strength are tokens from tokens.css, so the material follows light and
+ * dark mode.
+ *
+ * Apple's guidance: glass is for the floating navigation/controls layer only
+ * (never content cards), used sparingly, never stacked glass-on-glass, and
+ * it must stay legible and respect Reduce Transparency / Increase Contrast.
+ * The idea: glass marks a separate layer of things you interact with,
+ * floating above the content. On every card it would compete with the very
+ * content it's meant to frame.
+ *
+ * Layers, from back to front:
+ *   1. backdrop-filter: blur + saturation of whatever is behind (all modern
+ *      browsers), plus real refraction via an SVG displacement filter where
+ *      the browser can render it (Chromium; enabled from App.tsx).
+ *   2. a translucent tint for legibility,
+ *   3. a specular sheen (::before) and rim highlight, as if light catches
+ *      the edge of a lens.
+ *
+ * filter vs backdrop-filter: filter changes the element itself;
+ * backdrop-filter changes what shows through the element, the page behind
+ * it. That only works if the element's own background is see-through, which
+ * is why the tint is translucent.
+ *
+ * Try it: in Chrome or Edge, scroll the project cards under the nav and watch
+ *   the refraction bend them. Then in DevTools, More tools > Rendering,
+ *   emulate prefers-reduced-transparency: reduce and the glass turns solid.
+ * Learn more:
+ *   https://developer.apple.com/design/human-interface-guidelines/materials
+ *   https://developer.mozilla.org/en-US/docs/Web/CSS/backdrop-filter
+ */
+
+.glass {
+  /* position: relative anchors the ::before sheen below. isolation: isolate
+     starts a new stacking context (a separate group for z-index), so the
+     sheen's z-index of -1 puts it above this element's tint but behind its
+     text, instead of behind the whole element. */
+  position: relative;
+  isolation: isolate;
+  background: var(--glass-tint);
+  /* Blur what's behind, then boost its color so it stays vivid instead of
+     turning gray. Older Safari only knows the -webkit- prefixed name;
+     browsers skip declarations they don't understand, so listing both is
+     safe. */
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid var(--glass-edge);
+  /* Three comma-separated shadows: a bright line inside the top edge (the
+     rim catching light), a faint dark line inside the bottom edge, and a
+     soft outer shadow that lifts the control off the page. */
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 1px rgb(0 0 0 / 0.06),
+    var(--glass-shadow);
+}
+
+/* The specular sheen: a diagonal gradient, bright at the top-left where the
+   light "hits", clear through the middle, with a weaker glint at the
+   bottom-right. color-mix() blends the sheen with transparent, leaving 45%
+   of its opacity. border-radius: inherit keeps the sheen inside the
+   rounded shape, and pointer-events: none keeps this purely decorative
+   layer out of mouse and touch handling. */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    140deg,
+    var(--glass-sheen) 0%,
+    transparent 38%,
+    transparent 72%,
+    color-mix(in srgb, var(--glass-sheen) 45%, transparent) 100%
+  );
+}
+
+/* Refraction: bends the content behind the glass. url(#liquid-glass) points
+   at the SVG filter in GlassFilter.tsx, where smooth noise (feTurbulence)
+   decides how far each pixel of the backdrop shifts (feDisplacementMap), so
+   edges behind the glass ripple as through thick, uneven glass. Filter
+   functions run left to right: displace, then blur, then saturate.
+   Only Chromium renders SVG filters inside backdrop-filter (Safari and
+   Firefox would drop the whole effect), so App.tsx sets data-refraction only
+   there. It does so in a useEffect, which runs in the browser after
+   hydration, so the pre-rendered HTML always starts with plain frosted glass. */
+:root[data-refraction] .glass {
+  backdrop-filter: url(#liquid-glass) blur(var(--glass-blur)) saturate(180%);
+}
+
+/* No backdrop-filter support at all: an opaque surface stays readable.
+   @supports is a feature query: its rules apply only if the browser
+   understands the condition, and "not" flips that. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--glass-solid);
+  }
+}
+
+/* Accessibility settings turn the glass into a solid surface.
+   prefers-reduced-transparency matches when the visitor asks their system
+   for less transparency, in browsers that report it: Chrome and Edge do,
+   Safari and Firefox don't yet, so there only a higher-contrast setting
+   turns the glass solid. prefers-contrast: more matches Increase Contrast
+   (iPhone, Mac) or a similar setting. The comma means "or".
+   The refraction selector is listed too: it is more specific than .glass,
+   and a media query adds no specificity, so without it the refraction rule
+   above would keep its backdrop-filter. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass,
+  :root[data-refraction] .glass {
+    background: var(--glass-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass::before {
+    display: none;
+  }
+}
+/* Increase Contrast also gets a clearly visible edge, so the control's shape
+   doesn't depend on subtle shading. */
+@media (prefers-contrast: more) {
+  .glass {
+    border-color: var(--label-secondary);
+  }
+}
+
+/* Forced colors (Windows High Contrast): the browser drops backgrounds but
+   not backdrop-filter, so the nav would stay see-through over whatever is
+   behind it. Canvas is the user's chosen page background color. */
+@media (forced-colors: active) {
+  .glass,
+  :root[data-refraction] .glass {
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass::before {
+    display: none;
+  }
+}
+
+/* The SVG that holds the refraction filter takes no space on the page. */
+.glass-filter {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}

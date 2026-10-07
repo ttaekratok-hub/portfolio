@@ -1,0 +1,872 @@
+/*
+ * Page layout and components: the classes the React components use
+ * (className="...") are styled here, except the Liquid Glass material
+ * (.glass, .glass-filter), which lives in glass.css.
+ *
+ * How it fits: App.tsx imports tokens.css (the design values), glass.css
+ * (the Liquid Glass material) and then this file. Every color you see comes
+ * from a token name, not a hex code (the one #000 here is a mask value, not
+ * a visible color), so light/dark mode and Increase Contrast need no
+ * changes in this file. `npm run build` bundles and minifies all three
+ * into one file in dist/assets/ that nginx serves. Nothing is styled inline
+ * in the HTML, which the strict Content-Security-Policy requires
+ * (tests/prerender.test.ts checks).
+ *
+ * Sections follow the page from top to bottom. Squircle corners and the
+ * reduced-motion rules come last so they override what comes before.
+ *
+ * Several features here are "progressive enhancements": newer CSS that
+ * improves the page where supported (text-wrap, corner-shape), while older
+ * browsers ignore it and still show a working page.
+ *
+ * Try it: `npm run dev`, open http://localhost:5173 and resize the window.
+ *   Headings scale smoothly (clamp), card columns reflow (grid), and at
+ *   520px or narrower the nav drops the "TT" mark.
+ * Learn more:
+ *   https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_grid_layout
+ *   https://developer.apple.com/design/human-interface-guidelines/layout
+ */
+
+/* ---------- Base ---------- */
+
+/* border-box: width and height include padding and border, so a 300px box
+   stays 300px wide however much padding it gets. Most sites start with it. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* In-page links (#projects, #about) glide instead of jumping. The browser
+     stops each target 96px below the top of the window, so the fixed nav
+     doesn't cover its heading. */
+  scroll-behavior: smooth;
+  scroll-padding-top: 96px; /* anchor targets clear the floating nav */
+  /* Stop phone browsers from enlarging text on their own (an iPhone turned
+     sideways, for example); visitors can still zoom. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Everything inherits these, so components only set what differs. */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--label);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  letter-spacing: var(--tracking-body);
+  /* Fonts with an optical-size axis, like Apple's system font, adjust their
+     letter shapes to the size they're drawn at. auto is the default, spelled
+     out here. */
+  font-optical-sizing: auto;
+  /* macOS only: thinner grayscale anti-aliasing, which keeps light text on
+     dark backgrounds from looking heavy. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Browsers give headings and paragraphs default margins; spacing comes from
+   the spacing tokens instead. */
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+/* balance evens out line lengths so a heading never ends on one lonely word.
+   Browsers only balance short blocks of a few lines, so it's for headings
+   and intros. pretty suits paragraphs: a slower, more careful line-breaking
+   pass that mostly avoids a single short word on the last line. */
+h1,
+h2,
+h3,
+.eyebrow,
+.lede,
+.section-intro {
+  text-wrap: balance;
+}
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--tint);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* Focus ring for keyboard users. :focus-visible matches when the browser
+   decides a visible focus indicator helps (moving with Tab: yes; clicking a
+   button with the mouse: usually not). Never remove focus outlines without
+   a replacement: keyboard users rely on them to see where they are. */
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Hidden on screen but still read by screen readers (display: none would
+   hide it from them too). Projects.tsx uses it for extra link context and
+   for the live region that announces how many projects a filter shows. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Keeps the phone number in Contact.tsx on one line. */
+.nowrap {
+  white-space: nowrap;
+}
+
+/* "Skip to content": the first thing a keyboard user reaches with Tab. It
+   waits above the top of the window and appears when focused, so they can
+   jump past the nav straight to <main>.
+   Try it: load the page and press Tab once (Option-Tab in Safari, which
+   skips links on plain Tab by default). */
+.skip-link {
+  position: fixed;
+  top: var(--space-3);
+  left: max(var(--space-3), env(safe-area-inset-left));
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-capsule);
+  background: var(--tint-fill);
+  color: var(--on-tint);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.skip-link:focus {
+  transform: none;
+}
+
+/* ---------- Floating navigation (Liquid Glass) ---------- */
+
+/* position: fixed keeps the nav on screen while the page scrolls under it,
+   which is what makes glass worthwhile: content passes behind it.
+   .nav-wrap is a full-width strip that centers the capsule. pointer-events:
+   none lets clicks pass through the strip's empty sides to the page, and
+   .nav turns them back on for itself. */
+.nav-wrap {
+  position: fixed;
+  top: var(--space-3);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  /* env(safe-area-inset-*) is the space taken by an iPhone's notch or
+     Dynamic Island in landscape (0 elsewhere). index.html's viewport-fit=cover
+     lets the page draw edge to edge, so the side padding must make room for
+     it: max() picks whichever is larger, our gutter or the inset. */
+  padding: 0 max(var(--space-3), env(safe-area-inset-right)) 0 max(var(--space-3), env(safe-area-inset-left));
+  pointer-events: none;
+}
+
+.nav {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-height: 52px;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-5);
+  border-radius: var(--radius-capsule);
+}
+
+/* Sized like the other targets: the HIG asks for at least 44x44pt, which a
+   two-letter link wouldn't reach on its own. */
+.nav-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hit-target);
+  min-height: var(--hit-target);
+  font-weight: 700;
+  font-size: var(--text-headline);
+  letter-spacing: 0.02em;
+  color: var(--label);
+}
+
+/* When the links don't fit, they scroll sideways inside the capsule; the
+   scrollbar is hidden. */
+.nav-links {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* min-width/min-height: every link is at least a 44pt square, even "Art". */
+.nav-links a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hit-target);
+  min-height: var(--hit-target);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-capsule);
+  color: var(--label);
+  font-size: var(--text-subhead);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color var(--duration) var(--ease-spring);
+}
+.nav-links a:hover {
+  text-decoration: none;
+  background: var(--fill-tertiary);
+}
+/* The current section: a vibrant fill, not more glass (no glass on glass).
+   NavBar.tsx sets aria-current while you scroll. Styling the ARIA attribute
+   instead of a separate class means what screen readers announce and what
+   sighted visitors see can never disagree. */
+.nav-links a[aria-current="true"] {
+  background: var(--fill);
+}
+
+/* A media query: these rules apply only when the window is 520px wide or
+   less (phones). The "TT" mark goes and the links get tighter. */
+@media (max-width: 520px) {
+  .nav {
+    padding-left: var(--space-2);
+  }
+  .nav-brand {
+    display: none;
+  }
+  .nav-links a {
+    padding: 0 var(--space-3);
+  }
+}
+
+/* The smallest phones (iPhone SE/mini at 375px, most Androids at 360px, and
+   320px at 400% zoom): shrink the side padding with the screen so all five
+   links fit, instead of hiding "Contact" off the edge. clamp() keeps the
+   padding between 6px and 12px; the links stay 44px tall. */
+@media (max-width: 400px) {
+  .nav-wrap {
+    padding-left: max(var(--space-2), env(safe-area-inset-left));
+    padding-right: max(var(--space-2), env(safe-area-inset-right));
+  }
+  .nav-links {
+    gap: 0;
+  }
+  .nav-links a {
+    padding: 0 clamp(6px, 2.2vw, 12px);
+  }
+}
+
+/* ---------- Buttons (capsules, 44pt tall) ---------- */
+
+/* Hovering grows a button slightly and pressing shrinks it, with the spring
+   curve. Animating transform is cheap: the browser moves pixels it already
+   drew instead of recalculating the page layout. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hit-target);
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-capsule);
+  font-size: var(--text-body);
+  font-weight: 600;
+  letter-spacing: var(--tracking-body);
+  transition: transform var(--duration) var(--ease-spring);
+}
+.button:hover {
+  text-decoration: none;
+  transform: scale(1.03);
+}
+.button:active {
+  transform: scale(0.97);
+}
+/* Filled for the main action, gray for the secondary one (Hero.tsx), like
+   iOS's "filled" and "gray" button styles. The gray one is not glass: it sits
+   in the page and scrolls with it (the content layer), and the HIG keeps Liquid
+   Glass for controls that float above the content, like the nav. The
+   transparent border takes no visible space, but it becomes a real outline in
+   Windows High Contrast mode (forced colors, see below), where backgrounds
+   are removed. */
+.button-filled {
+  background: var(--tint-fill);
+  color: var(--on-tint);
+  border: 1px solid transparent;
+}
+.button-gray {
+  background: var(--fill);
+  color: var(--label);
+  border: 1px solid transparent;
+}
+
+/* ---------- Hero ---------- */
+
+/* The first screen. svh ("small viewport height") is the window height with
+   a phone browser's toolbars showing, so the hero fits the visible screen
+   and doesn't resize as the toolbars slide away. place-items: center centers
+   the content both ways. */
+.hero {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 100svh;
+  padding: 120px max(var(--space-5), env(safe-area-inset-right)) var(--space-24)
+    max(var(--space-5), env(safe-area-inset-left));
+  overflow: hidden;
+  text-align: center;
+}
+
+/* The animated canvas from FlowField.tsx, stretched behind the text. */
+.flow-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Fade the animation into the page so the hero has no hard bottom edge. */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 30%;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+}
+
+/* The pause/play button for the animation (FlowField.tsx): a round 44pt gray
+   button in the hero's bottom corner, above the canvas and its fade
+   (z-index), clear of the safe areas. */
+.motion-toggle {
+  position: absolute;
+  z-index: 1;
+  right: max(var(--space-5), env(safe-area-inset-right));
+  bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  display: grid;
+  place-items: center;
+  width: var(--hit-target);
+  height: var(--hit-target);
+  padding: 0;
+  border: 1px solid transparent; /* an outline in forced-colors mode */
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--label);
+  cursor: pointer;
+}
+.motion-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.eyebrow {
+  color: var(--label-secondary);
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin-bottom: var(--space-4);
+}
+
+/* Fluid type: clamp(minimum, preferred, maximum). 11vw is 11% of the window
+   width, so the heading grows with the screen but stays between 3.5rem and
+   7rem (56px and 112px at the default font size); it scales for windows from
+   about 510px to 1020px wide. */
+.display {
+  font-size: clamp(3.5rem, 11vw, 7rem);
+  line-height: 1.02;
+  font-weight: 700;
+  letter-spacing: var(--tracking-display);
+}
+
+/* Gradient text: paint a gradient as the background, clip it to the shapes
+   of the letters (background-clip: text) and make the text itself
+   transparent so the gradient shows through. */
+.gradient-text {
+  background: linear-gradient(100deg, var(--accent-indigo), var(--accent-purple) 55%, var(--accent-pink));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lede {
+  margin: var(--space-6) auto 0;
+  max-width: 620px;
+  color: var(--label-secondary);
+  font-size: clamp(1.1875rem, 2.4vw, 1.4375rem);
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+/* flex-wrap lets the two buttons stack on narrow phones. */
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+}
+
+/* ---------- Sections ---------- */
+
+/* The classic centered column: max-width caps the width, and margin auto
+   splits the leftover space into equal side margins. */
+.section {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: var(--space-24) max(var(--space-5), env(safe-area-inset-right)) 0
+    max(var(--space-5), env(safe-area-inset-left));
+}
+
+/* clamp() accepts tokens too: never smaller than the HIG Large Title. */
+.section-title {
+  font-size: clamp(var(--text-large-title), 5vw, 3rem);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+  margin-bottom: var(--space-2);
+}
+
+.section-intro {
+  color: var(--label-secondary);
+  font-size: var(--text-title3);
+  line-height: var(--leading-title3);
+  margin-bottom: var(--space-8);
+}
+
+/* ---------- Segmented control ---------- */
+
+/* The project filter in Projects.tsx: a row of toggle buttons like the iOS
+   segmented control, with the selected segment as a solid "thumb". It sits in
+   the content and scrolls with it, so it uses the standard gray track iOS uses
+   for in-content segmented controls, not Liquid Glass: glass here would end up
+   stacked under the glass nav whenever you scroll (no glass on glass). */
+.segmented {
+  display: inline-flex;
+  max-width: 100%;
+  gap: 2px;
+  padding: 3px;
+  margin: var(--space-4) 0 var(--space-8);
+  border-radius: var(--radius-capsule);
+  background: var(--fill-tertiary);
+  border: 1px solid transparent; /* an outline in forced-colors mode */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* Phones: the filter row can be wider than the screen, so it scrolls
+   sideways. The negative margin lets the scroller reach the screen edges,
+   and the matching padding keeps the first button lined up with the text
+   above. mask-image fades the ends (black = visible, transparent = hidden)
+   to hint there's more; the left fade sits in the padding, so it only shows
+   once you've scrolled. The whole capsule slides as one piece.
+   scroll-padding-inline keeps a segment that's scrolled into view (Projects.tsx
+   does that on keyboard focus) clear of the faded ends. */
+@media (max-width: 640px) {
+  .segmented-scroller {
+    margin: 0 calc(-1 * var(--space-5));
+    padding: 0 var(--space-5);
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-padding-inline: 48px;
+    mask-image: linear-gradient(to right, transparent, #000 var(--space-5), #000 calc(100% - var(--space-5)), transparent);
+  }
+  .segmented {
+    max-width: none;
+    overflow: visible;
+  }
+}
+
+/* font: inherit, because buttons don't inherit the page font by default. */
+.segment {
+  min-height: var(--hit-target);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-capsule);
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-size: var(--text-subhead);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration) var(--ease-spring),
+    box-shadow var(--duration) var(--ease-spring);
+}
+.segment:hover {
+  background: var(--fill-tertiary);
+}
+/* Projects.tsx sets aria-pressed on the active filter: screen readers say
+   "pressed", and this rule draws the thumb from the same attribute. */
+/* The thumb also gets a 1px edge (the inset box-shadow): the fill alone is
+   only 1.3:1 against the track in light mode, and WCAG 1.4.11 asks for 3:1
+   for whatever shows a control's state. box-shadow, not outline, so it never
+   competes with the keyboard focus ring (an outline). */
+.segment[aria-pressed="true"] {
+  background: var(--control-thumb);
+  box-shadow:
+    inset 0 0 0 1px var(--label-secondary),
+    var(--control-thumb-shadow);
+  font-weight: 600;
+}
+
+/* ---------- Cards (content layer: standard material, not glass) ---------- */
+
+/* Responsive columns without a media query: repeat(auto-fill, minmax(300px,
+   1fr)) makes as many columns of at least 300px as fit, then shares the
+   leftover space equally (1fr). auto-fill keeps empty columns when there are
+   fewer cards than columns, so the two Art cards stay the same width as the
+   project cards. (The skills grid below uses auto-fit, which collapses empty
+   columns so its cards stretch to fill the row.) */
+.card-grid {
+  display: grid;
+  /* min(300px, 100%): on screens narrower than 300px plus the gutters, a
+     column may shrink to the available width instead of overflowing it. */
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-6) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--bg-elevated);
+  box-shadow: var(--card-shadow);
+}
+
+.card-title {
+  font-size: var(--text-title3);
+  line-height: var(--leading-title3);
+  font-weight: 600;
+  letter-spacing: var(--tracking-title);
+}
+
+.card-body {
+  color: var(--label-secondary);
+  font-size: var(--text-subhead);
+  line-height: 1.47;
+}
+
+/* margin-top: auto takes all the spare space above the tags, pushing them
+   (and the links after them) to the bottom of the card. Cards in a grid row
+   stretch to the same height, so every card's tags and links sit along the
+   bottom edge, however long its summary is. */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: auto 0 0;
+  padding: var(--space-2) 0 0;
+  list-style: none;
+}
+/* border-radius 13px is half a one-line chip's height, so a chip looks like a
+   capsule; a long one that wraps onto two lines becomes a rounded rectangle
+   instead of a stretched pill. */
+.tags li {
+  padding: 3px var(--space-3);
+  border-radius: 13px;
+  background: var(--fill-tertiary);
+  color: var(--label);
+  font-size: var(--text-footnote);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.card-links {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-subhead);
+  font-weight: 600;
+}
+/* A 44px-tall tap target around the short "Code" link text (HIG minimum). */
+.card-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target);
+}
+
+/* ---------- Art placeholders ---------- */
+
+.art-card {
+  padding: var(--space-3) var(--space-3) var(--space-6);
+}
+.art-card .card-title,
+.art-card .card-body {
+  padding: 0 var(--space-3);
+}
+
+/* Concentric corners: 24px card - 12px padding = 12px, so the gap between
+   the two curves stays even. The stripes are a repeating gradient: 16px of
+   fill, 16px of nothing, at -45 degrees. */
+.art-placeholder {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  margin-bottom: var(--space-2);
+  border-radius: calc(var(--radius-card) - var(--space-3));
+  background: repeating-linear-gradient(-45deg, var(--fill-tertiary) 0 16px, transparent 16px 32px), var(--fill-tertiary);
+}
+
+.badge {
+  padding: 6px var(--space-4);
+  border-radius: var(--radius-capsule);
+  background: var(--tint-fill);
+  color: var(--on-tint);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* ---------- Inset grouped lists (iOS Settings style) ---------- */
+
+/* p + p ("adjacent sibling"): every paragraph after the first is secondary. */
+.about-text {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 760px;
+  margin: var(--space-4) 0 var(--space-8);
+  font-size: var(--text-title3);
+  line-height: 1.5;
+  letter-spacing: -0.012em;
+}
+.about-text p + p {
+  color: var(--label-secondary);
+}
+
+/* Rows grouped in one rounded box: the timeline (About.tsx) and the contact
+   rows (Contact.tsx). overflow: hidden clips each row's hover background to
+   the box's rounded corners. */
+.grouped {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius-group);
+  background: var(--bg-elevated);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+
+.grouped-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--hit-target);
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
+  color: var(--label);
+}
+/* Hairline separators, inset from the leading edge like iOS. li + li skips
+   the first row, so lines appear only between rows. On high-resolution
+   (Retina) screens 0.5px is a single device pixel; other screens round it
+   up to 1px. */
+.grouped > li + li > .grouped-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--space-5);
+  right: 0;
+  border-top: 0.5px solid var(--separator);
+}
+a.grouped-row:hover {
+  text-decoration: none;
+  background: var(--fill-tertiary);
+}
+
+/* Flex items won't shrink below their content's width by default
+   (min-width: auto). min-width: 0 lets the title column shrink, so long text
+   wraps instead of pushing the row wider than the screen. */
+.row-main {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.row-title {
+  font-size: var(--text-body);
+  line-height: var(--leading-headline);
+}
+.row-subtitle,
+.row-detail {
+  color: var(--label-secondary);
+  font-size: var(--text-subhead);
+  line-height: var(--leading-subhead);
+}
+/* A long email address may break anywhere rather than overflow the row. */
+.row-detail {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.chevron {
+  flex: none;
+  width: 8px;
+  height: 14px;
+  color: var(--label-secondary);
+}
+
+/* Phones: timeline dates move under the title instead of beside it. */
+@media (max-width: 520px) {
+  .timeline .grouped-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .timeline .row-detail {
+    text-align: left;
+  }
+}
+
+.skills-grid {
+  display: grid;
+  /* min() again for tiny screens. */
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: var(--space-5);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.skills-grid .card {
+  padding: var(--space-6) var(--space-5);
+}
+.skills-grid .tags {
+  margin: 0;
+}
+
+.contact .grouped {
+  max-width: 560px;
+}
+
+/* ---------- Footer ---------- */
+
+.footer {
+  max-width: var(--content-width);
+  margin: var(--space-24) auto 0;
+  padding: var(--space-6) max(var(--space-5), env(safe-area-inset-right))
+    max(var(--space-12), env(safe-area-inset-bottom)) max(var(--space-5), env(safe-area-inset-left));
+  border-top: 0.5px solid var(--separator);
+  color: var(--label-secondary);
+  font-size: var(--text-footnote);
+  line-height: var(--leading-footnote);
+}
+
+/* ---------- Keyboard focus inside clipped containers ---------- */
+
+/* The global :focus-visible ring is drawn just outside an element. Inside a
+   container that clips its overflow (the scrolling nav links and filter row,
+   the rounded grouped lists), the outside part would be cut off, leaving a
+   sliver. These draw the ring inside the element instead (a negative offset),
+   and the first and last grouped rows round it to follow the group's corners. */
+.nav-links a:focus-visible,
+.segment:focus-visible,
+.grouped-row:focus-visible {
+  outline-offset: -3px;
+}
+.grouped > li:first-child > .grouped-row:focus-visible {
+  border-radius: var(--radius-group) var(--radius-group) 6px 6px;
+}
+.grouped > li:last-child > .grouped-row:focus-visible {
+  border-radius: 6px 6px var(--radius-group) var(--radius-group);
+}
+
+/* ---------- Continuous ("squircle") corners where supported ---------- */
+
+/* A normal rounded corner is a quarter circle: the curve starts abruptly
+   where the straight edge ends. Apple's continuous corners ease into the
+   curve, which looks smoother; the shape is close to a "squircle" (between
+   a square and a circle). corner-shape: squircle draws it where supported.
+   A squircle hugs the corner more, so it looks less round at the same
+   radius; that's why the radii here are larger. Browsers without
+   corner-shape skip this whole block and keep the corners above.
+   Try it: in Chrome DevTools, untick corner-shape on a card to compare. */
+@supports (corner-shape: squircle) {
+  .card,
+  .grouped,
+  .art-placeholder {
+    corner-shape: squircle;
+  }
+  .card {
+    border-radius: 40px;
+  }
+  .grouped {
+    border-radius: 30px;
+  }
+  .art-placeholder {
+    border-radius: 24px;
+  }
+}
+
+/* ---------- Increase Contrast and forced colors ---------- */
+
+/* Increase Contrast: outline the controls whose shape is otherwise only a
+   subtle fill, and give the selected segment a visible edge. */
+@media (prefers-contrast: more) {
+  .segmented,
+  .button-gray,
+  .motion-toggle {
+    border-color: var(--label-secondary);
+  }
+  .segment[aria-pressed="true"] {
+    box-shadow: inset 0 0 0 1px var(--label);
+  }
+}
+
+/* Forced colors (Windows High Contrast and similar): the browser replaces
+   every color with a small system palette chosen by the user, and drops
+   backgrounds and shadows. Selection shown only by a fill would vanish, so the
+   selected filter and the current nav link use the system's Highlight colors
+   (forced-color-adjust: none lets us set them). The transparent borders above
+   become visible outlines here.
+   Try it: Chrome DevTools > Rendering > Emulate CSS media feature forced-colors.
+   Learn more: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/forced-colors */
+@media (forced-colors: active) {
+  .segment[aria-pressed="true"],
+  .nav-links a[aria-current="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+  .badge {
+    border: 1px solid;
+  }
+}
+
+/* ---------- Motion ---------- */
+
+/* prefers-reduced-motion matches when the visitor turns on Reduce Motion
+   (iPhone, Mac) or a similar setting; motion on screen can cause dizziness
+   or nausea for some people. This turns off smooth scrolling, transitions
+   and the button scaling, and FlowField.tsx draws one still frame instead
+   of animating. !important beats the more specific transition rules above.
+   Learn more:
+   https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+  .button:hover,
+  .button:active {
+    transform: none;
+  }
+}

@@ -5,11 +5,23 @@ kind: Kustomization
 # branch (see k8s/flux/). The Cloudflare Tunnel forwards ttaekratok.com to
 # http://<pi-lan-ip>:30738.
 #
+# This is a kustomize overlay: it starts from the shared base and changes only
+# what differs in production. Here that's one patch, which makes the Service a
+# NodePort. The CI job k8s-smoke-test deploys this same overlay to a kind
+# cluster, so it is tested before Flux ever sees it.
+#
 # No `images:` block here: on the deploy branch, CI appends one that pins the
 # exact commit SHA it just tested and published.
+#
+# Try it: kubectl kustomize k8s/overlays/pi   (what Flux applies, minus the pin)
 resources:
   - ../../base
 
+# A patch can be written two ways. A strategic merge patch is a partial copy of
+# the object that kustomize merges in. A JSON patch (RFC 6902), like
+# service-patch.yaml, is a list of operations on exact paths. A JSON patch
+# doesn't name the object it changes, so `target:` picks it: the Service
+# called portfolio.
 patches:
   - path: service-patch.yaml
     target:

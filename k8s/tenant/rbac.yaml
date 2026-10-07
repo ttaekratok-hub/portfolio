@@ -2,6 +2,26 @@
 # cluster-admin identity. The Role lists exactly what the site needs and
 # nothing more. Built-in roles like "edit" are too broad here: they also
 # allow creating Flux objects, which Flux would then run as cluster-admin.
+#
+# RBAC (role-based access control) is how Kubernetes decides who may do what.
+# It only grants: anything not granted is forbidden. Three pieces work together:
+#   ServiceAccount  an identity for a program (as opposed to a human user)
+#   Role            a list of allowed verbs (get, create, delete...) on kinds of
+#                   objects, valid inside one namespace
+#   RoleBinding     gives a Role to accounts
+# The account lives in flux-system, next to Flux, but the Role and RoleBinding
+# live in portfolio, so its rights stop at that namespace. (A ClusterRole with
+# a ClusterRoleBinding would grant rights in every namespace.)
+#
+# To let Flux manage another kind of object (say, an autoscaler), add a rule for
+# exactly that kind here; tests/k8s.test.ts lists the kinds the app may use.
+#
+# Try it:
+#   kubectl auth can-i --list -n portfolio \
+#     --as=system:serviceaccount:flux-system:portfolio-reconciler
+#   kubectl auth can-i delete pods -n portfolio \
+#     --as=system:serviceaccount:flux-system:portfolio-reconciler      (no)
+# Learn more: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -14,6 +34,8 @@ metadata:
   name: portfolio-reconciler
   namespace: portfolio
 rules:
+  # apiGroups: Kubernetes groups its object kinds into API groups. "apps" holds
+  # Deployments and ReplicaSets; "" is the original core group (Pods, Services).
   # What Flux creates, updates and prunes (k8s/overlays/pi).
   - apiGroups: ["apps"]
     resources: ["deployments"]
@@ -22,6 +44,7 @@ rules:
     resources: ["services"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Read-only, so `wait: true` can follow the rollout's health.
+  # (`watch` means "stream me every change as it happens".)
   - apiGroups: ["apps"]
     resources: ["replicasets"]
     verbs: ["get", "list", "watch"]
@@ -29,6 +52,8 @@ rules:
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
 ---
+# Grants the Role above to Flux's ServiceAccount. roleRef can't be changed
+# once created; to point a binding at another role, delete and recreate it.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:

@@ -2,6 +2,6 @@
   "extends": ["html-validate:recommended"],
   "rules": {
     "no-trailing-whitespace": "off",
-    "tel-non-breaking": ["error", { "ignoreClasses": ["nowrap"] }]
+    "tel-non-breaking": ["error", { "ignoreClasses": ["nowrap", "grouped-row"] }]
   }
 }

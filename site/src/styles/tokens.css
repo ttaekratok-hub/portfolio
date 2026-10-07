@@ -1,0 +1,254 @@
+/*
+ * Design tokens, following Apple's Human Interface Guidelines (HIG).
+ *
+ * A design token is one named design decision (a color, a text size, a
+ * spacing step) defined once and used everywhere. Here each token is a CSS
+ * custom property, often called a CSS variable: it's declared on :root (the
+ * <html> element), every element inherits it, and other rules read it with
+ * var(), e.g. `color: var(--label)` in global.css. Change a value here and
+ * the whole site follows.
+ *
+ * Tokens also make light and dark mode cheap. Components ask for a role
+ * ("label", "separator"), never a hex code; the dark-mode block further down
+ * swaps the values behind those names, so no component has to know which
+ * appearance is active.
+ *
+ * How it connects: App.tsx imports this file, then glass.css and
+ * global.css, which read these tokens by name. FlowField.tsx reads the flow
+ * tokens from JavaScript, so the canvas animation follows the theme too.
+ * tests/tokens.test.ts parses this file as text and checks the contrast of
+ * the label, link and button-text colors on their backgrounds, in both
+ * appearances.
+ *
+ * Colors are Apple's system colors (HIG, 2025 values) for light and dark
+ * appearance. Where an Apple value is too faint for small text on the web
+ * (WCAG AA needs 4.5:1), we use Apple's own "Increase Contrast" variant or
+ * the value apple.com uses.
+ *
+ * The 4.5:1 rule: WCAG (Web Content Accessibility Guidelines) compares the
+ * relative luminance (perceived brightness) of text and background as a
+ * ratio, from 1:1 (same color) to 21:1 (black on white). Level AA, the usual
+ * target, asks for at least 4.5:1 for normal text and 3:1 for large text
+ * (24px, or about 19px bold). Below that, text gets hard to read for people
+ * with low vision, on dim screens or in sunlight.
+ *
+ * Type sizes are the HIG iOS text styles at the default (Large) size.
+ * Apple's tables are in points; thanks to the viewport meta tag in
+ * index.html, one CSS pixel on an iPhone is one point, so 17px matches body
+ * text in a native app. They're written in rem: 1rem is the browser's default
+ * font size (16px unless the visitor changed it), so 17pt = 17 / 16 =
+ * 1.0625rem. At the default the result is identical to px, but someone who
+ * sets a larger default font size gets larger text everywhere: the web's
+ * version of Dynamic Type on iOS.
+ *
+ * Try it: from the repo root, `npx vitest run tests/tokens.test.ts` runs the
+ *   contrast check. Set the light secondary label to #8e8e93 (systemGray,
+ *   2.9:1 on the page gray), watch the test fail, then undo.
+ *   In Chrome DevTools, open More tools > Rendering and use "Emulate CSS
+ *   media feature prefers-color-scheme" to flip between light and dark.
+ * Learn more:
+ *   https://developer.mozilla.org/en-US/docs/Web/CSS/Using_CSS_custom_properties
+ *   https://developer.apple.com/design/human-interface-guidelines/color
+ *   https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html
+ */
+
+:root {
+  /* Tells the browser the page supports both appearances, so its built-in
+     parts (scrollbars, form controls, the default background) follow the
+     system setting too. The color-scheme meta tag in index.html says the
+     same before this CSS has loaded, which avoids a white flash in dark mode. */
+  color-scheme: light dark;
+
+  /* Fonts: real SF Pro on Apple devices via the system font (Apple's license
+     doesn't allow serving SF as a web font); Inter, its closest open-source
+     match, everywhere else. The browser uses the first font in the list it
+     has: -apple-system and BlinkMacSystemFont mean "the system font" on
+     Apple devices and are unknown elsewhere, so other devices get Inter.
+     Inter is bundled with the site (imported in App.tsx) because the
+     Content-Security-Policy in nginx.conf only allows files from this site,
+     which rules out font CDNs. The rest of the list is a fallback. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI Variable", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* HIG text styles: size / line height, per style as in Apple's table
+     (points / 16 = rem). Not every style is used yet; the scale is here so a new
+     component picks a size from it instead of inventing one. Body line
+     height is unitless: a multiplier of the font size, so it stays
+     proportional for any text that inherits it. */
+  --text-large-title: 2.125rem; /* 34pt */
+  --leading-large-title: 2.5625rem;
+  --text-title1: 1.75rem; /* 28pt */
+  --leading-title1: 2.125rem;
+  --text-title2: 1.375rem; /* 22pt */
+  --leading-title2: 1.75rem;
+  --text-title3: 1.25rem; /* 20pt */
+  --leading-title3: 1.5625rem;
+  --text-headline: 1.0625rem; /* 17pt, semibold */
+  --leading-headline: 1.375rem;
+  --text-body: 1.0625rem; /* 17pt */
+  --leading-body: 1.47; /* long-form paragraphs, as on apple.com */
+  --text-callout: 1rem; /* 16pt */
+  --text-subhead: 0.9375rem; /* 15pt */
+  --leading-subhead: 1.25rem;
+  --text-footnote: 0.8125rem; /* 13pt */
+  --leading-footnote: 1.125rem;
+  --text-caption: 0.75rem; /* 12pt */
+
+  /* Tracking (CSS letter-spacing) is extra space between all letters.
+     Slightly negative tracking gives Apple's compact look. The values are in
+     em, a fraction of the element's own font size, so they scale with it.
+     The huge hero heading is set tightest: default spacing looks loose at
+     display sizes. */
+  --tracking-body: -0.022em;
+  --tracking-title: -0.016em;
+  --tracking-display: -0.03em;
+
+  /* 8-point grid: the spacing steps are multiples of 4px, mostly of 8, and
+     most gaps and paddings use them, which gives the layout a steady rhythm
+     (a few tight spots inside small controls use 2px, 3px or 6px). Each name
+     is a step count: space-6 is 6 x 4px = 24px. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* Shapes: capsules for controls, rounded rectangles for content.
+     A capsule is a radius bigger than any control: the browser shrinks it to
+     half the element's height, which gives fully round ends at any size.
+     Inner corners are concentric: inner radius = outer radius - padding, so
+     a rounded box inside another keeps an even gap around the curve (see
+     .art-placeholder in global.css). */
+  --radius-capsule: 999px;
+  --radius-card: 24px;
+  --radius-group: 18px;
+  --hit-target: 44px; /* HIG minimum tap target (44 x 44pt), about a fingertip */
+
+  /* Motion: a curve that starts fast and settles gently, a stand-in for iOS
+     spring animations. The four numbers are the two control points of a
+     cubic Bezier curve that maps elapsed time to progress. */
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration: 0.35s;
+  --content-width: 1080px; /* the content column; wider screens get side margins */
+
+  /* ---------- Light appearance ----------
+     Color names follow Apple's semantic colors: each names a role (label,
+     separator, fill), not a hue. Text and background colors are 6-digit hex
+     codes, the format tests/tokens.test.ts reads. */
+  --bg: #f2f2f7; /* systemGroupedBackground */
+  --bg-elevated: #ffffff; /* secondarySystemGroupedBackground */
+  --label: #1d1d1f; /* apple.com's text color, a touch softer than black */
+  --label-secondary: #636366; /* an Apple gray (systemGray2's dark value): 5.2:1 or more on every
+                                 light background here; HIG's 60% gray is 3.4:1 on white */
+  /* Separators and fills are translucent like Apple's, so they tint whatever
+     surface they sit on. rgb(R G B / alpha) is the modern syntax; 0.29 means
+     29% opaque. */
+  --separator: rgb(60 60 67 / 0.29);
+  --fill: rgb(120 120 128 / 0.2); /* systemFill */
+  --fill-tertiary: rgb(118 118 128 / 0.12); /* tertiarySystemFill */
+  /* Blue has two tokens because it solves two contrast problems. tint is
+     blue text (links) on the gray or white background; tint-fill is a blue
+     background under white text (buttons, badges). */
+  --tint: #0066cc; /* link blue apple.com uses: systemBlue is 3.5:1 on white, its
+                     Increase Contrast variant #1e6ef4 only 4.1:1 on this gray */
+  --tint-fill: #1e6ef4; /* systemBlue, Increase Contrast: 4.6:1 with white text */
+  --on-tint: #ffffff;
+  /* Accents appear only in the hero's gradient name. That's large text, where
+     WCAG asks for 3:1, and each is above 4:1 on the page background. */
+  --accent-indigo: #564ade;
+  --accent-purple: #b02fc2;
+  --accent-pink: #e7124d;
+  --focus-ring: #0066cc; /* keyboard focus outline; WCAG wants 3:1 against the page */
+  /* Two layered shadows: a tight one that defines the edge and a soft, wide
+     one that lifts the card off the page. */
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.06);
+
+  /* Liquid Glass (navigation/controls layer only), used by glass.css: the
+     see-through tint, the edge and highlight lines, the sheen, the opaque
+     fallback (glass-solid) and the blur radius. */
+  --glass-tint: rgb(255 255 255 / 0.6);
+  --glass-edge: rgb(255 255 255 / 0.75);
+  --glass-highlight: rgb(255 255 255 / 0.95);
+  --glass-sheen: rgb(255 255 255 / 0.55);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.12);
+  --glass-solid: #ffffff;
+  --glass-blur: 12px;
+  /* The raised pill that marks the selected project filter (.segment). */
+  --control-thumb: #ffffff;
+  --control-thumb-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+
+  /* Hero flow field. FlowField.tsx reads these from JavaScript, not CSS: the
+     canvas background, the nearly transparent layer painted over every
+     frame (the lower its opacity, the longer the particle trails) and the
+     HSL lightness of the particle strokes. */
+  --flow-bg: #f2f2f7;
+  --flow-fade: rgb(242 242 247 / 0.08);
+  --flow-lightness: 52%;
+}
+
+/* Dark appearance. prefers-color-scheme is a media query that reports the
+   visitor's light/dark setting. When it's dark, these values replace the ones
+   above: same names, new values. Only colors and shadows change; sizes,
+   spacing and shapes are shared by both appearances. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000; /* systemBackground; true black also saves power on OLED screens */
+    /* Shadows barely show on black, so dark mode shows depth the HIG way:
+       raised surfaces are lighter than the background behind them. */
+    --bg-elevated: #1c1c1e; /* secondarySystemBackground */
+    --label: #f5f5f7; /* apple.com's off-white */
+    --label-secondary: #a1a1a6; /* apple.com's dark secondary text; HIG's secondaryLabel
+                                   (#98989f over cards) dips to 4.45:1 on a hovered row */
+    --separator: rgb(84 84 88 / 0.6);
+    --fill: rgb(120 120 128 / 0.36);
+    --fill-tertiary: rgb(118 118 128 / 0.24);
+    --tint: #0091ff; /* systemBlue, dark */
+    --tint-fill: #1e6ef4; /* white on dark systemBlue is only 3.2:1: keep the deeper blue */
+    --on-tint: #ffffff;
+    --accent-indigo: #6d7cff;
+    --accent-purple: #db34f2;
+    --accent-pink: #ff375f;
+    --focus-ring: #0091ff;
+    --card-shadow: none;
+
+    --glass-tint: rgb(44 44 48 / 0.5);
+    --glass-edge: rgb(255 255 255 / 0.16);
+    --glass-highlight: rgb(255 255 255 / 0.28);
+    --glass-sheen: rgb(255 255 255 / 0.18);
+    --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
+    --glass-solid: #1c1c1e;
+    --control-thumb: #636366; /* systemGray2, dark */
+    --control-thumb-shadow: none;
+
+    --flow-bg: #000000;
+    --flow-fade: rgb(0 0 0 / 0.035); /* longer trails: they vanish fast on black */
+    --flow-lightness: 64%;
+  }
+}
+
+/* Increase Contrast: stronger labels and separators, Apple's high-contrast blue.
+   prefers-contrast: more matches when the visitor turns on Increase Contrast
+   (iPhone, Mac) or a similar system setting. These blocks come after the ones
+   above, and when two rules are equally specific the later one wins: one of
+   the rules of the "cascade" in Cascading Style Sheets. The contrast test
+   doesn't read these blocks, but every text color here reaches 7.9:1 or
+   more. */
+@media (prefers-contrast: more) {
+  :root {
+    --label-secondary: #3a3a3c;
+    --separator: #8e8e93;
+  }
+}
+/* "and": only when both Increase Contrast and dark mode are on. */
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root {
+    --label-secondary: #c7c7cc;
+    --tint: #5cb8ff; /* systemBlue, Increase Contrast dark */
+  }
+}
