@@ -1,0 +1,31 @@
+/* STARTER, to be finished with the galaxy map (components/GalaxyMap.tsx).
+   The map is a window onto the scene: the canvas fills it, and the system
+   buttons sit on top, moved into place by GalaxyMap.tsx. */
+.galaxy-map {
+  position: relative;
+  margin: var(--space-4) 0 var(--space-6);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--bg);
+}
+@media (max-width: 640px) {
+  .galaxy-map {
+    aspect-ratio: 4 / 5;
+  }
+}
+.galaxy-map-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* Each button's position comes from JavaScript (style.transform =
+   translate(x, y)). The separate `translate` property centers it on that
+   point; the two combine instead of overwriting each other. */
+.galaxy-system {
+  position: absolute;
+  top: 0;
+  left: 0;
+  translate: -50% -50%;
+}

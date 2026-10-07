@@ -100,9 +100,14 @@ const PAIRS: Array<[string, string]> = [
   ["label", "fill-tertiary over bg"],
   // The selected filter's "thumb".
   ["label", "control-thumb"],
+  // Text sits directly on the sky/space background (hero, section intros,
+  // About). By day the sky runs from --sky-top (darkest) to --sky-bottom.
+  ["label-secondary", "sky-top"],
+  ["label-secondary", "sky-bottom"],
+  ["tint", "sky-top"],
 ];
 
-// Generates one test per pair and appearance: 12 pairs x 2 = 24 tests.
+// Generates one test per pair and appearance: 15 pairs x 2 = 30 tests.
 // test.each fills the %s placeholders in the name with each pair's values.
 for (const [name, theme] of [["light", light], ["dark", dark]] as const) {
   describe(`${name} appearance`, () => {

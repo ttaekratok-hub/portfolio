@@ -118,17 +118,12 @@ export const PROJECTS: Project[] = [
     links: [],
   },
   {
-    title: "Flow Field Hero",
+    title: "Space Scene & Galaxy Map",
     year: "2026",
     summary:
-      "The animated background at the top: particles advected through a procedural noise field on a 2D canvas, pausing when off-screen.",
+      "The space behind this site: a procedural spiral galaxy, starfield and nebula drawn with WebGL, a daytime sky in light mode, and an interactive galaxy map of these projects.",
     categories: ["techart"],
-    tech: ["Canvas 2D", "Procedural noise", "React"],
-    links: [
-      {
-        label: "Code",
-        href: "https://github.com/ttaekratok-hub/portfolio/blob/main/site/src/components/FlowField.tsx",
-      },
-    ],
+    tech: ["Three.js", "WebGL", "GLSL shaders", "TypeScript"],
+    links: [{ label: "Code", href: "https://github.com/ttaekratok-hub/portfolio/tree/main/site/src/space" }],
   },
 ];

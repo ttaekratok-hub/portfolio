@@ -14,7 +14,7 @@
  * appearance is active.
  *
  * How it connects: App.tsx imports this file, then glass.css and
- * global.css, which read these tokens by name. FlowField.tsx reads the flow
+ * global.css, which read these tokens by name. space/palette.ts reads the space
  * tokens from JavaScript, so the canvas animation follows the theme too.
  * tests/tokens.test.ts parses this file as text and checks the contrast of
  * the label, link and button-text colors on their backgrounds, in both
@@ -141,7 +141,8 @@
      Color names follow Apple's semantic colors: each names a role (label,
      separator, fill), not a hue. Text and background colors are 6-digit hex
      codes, the format tests/tokens.test.ts reads. */
-  --bg: #f2f2f7; /* systemGroupedBackground */
+  --bg: #dcebff; /* the page behind content: the top of the daytime sky, its
+                   darkest part, so every contrast check uses the worst case */
   --bg-elevated: #ffffff; /* secondarySystemGroupedBackground */
   --label: #1d1d1f; /* apple.com's text color, a touch softer than black */
   --label-secondary: #636366; /* an Apple gray (systemGray2's dark value): 5.2:1 or more on every
@@ -183,13 +184,26 @@
   --control-thumb: #ffffff;
   --control-thumb-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
 
-  /* Hero flow field. FlowField.tsx reads these from JavaScript, not CSS: the
-     canvas background, the nearly transparent layer painted over every
-     frame (the lower its opacity, the longer the particle trails) and the
-     HSL lightness of the particle strokes. */
-  --flow-bg: #f2f2f7;
-  --flow-fade: rgb(242 242 247 / 0.08);
-  --flow-lightness: 52%;
+  /* Space. space/palette.ts reads these from JavaScript for the WebGL scenes
+     (background.ts, map.ts), and global.css paints --sky-top/--sky-bottom
+     as the gradient shown before (or without) WebGL. Light mode is a soft
+     daytime sky; text sits directly on it, so --sky-top is light enough
+     for 4.5:1 (tests/tokens.test.ts checks it). */
+  --space-bg: #f4f8ff;
+  --sky-top: #dcebff;
+  --sky-bottom: #f4f8ff;
+  --space-star: #ffffff; /* by day: cloud highlights */
+  --space-core: #ffb878; /* galaxy core, pastel by day */
+  --space-arm: #7d95ff; /* galaxy arms */
+  --space-nebula-1: #b8a2ff;
+  --space-nebula-2: #8fdbe4;
+  --space-nebula-3: #ffa8c8;
+  /* Project map "empires", one color per category. */
+  --empire-infrastructure: #2f6fe4;
+  --empire-networking: #0f9d84;
+  --empire-software: #8a4be0;
+  --empire-embedded: #c47a00;
+  --empire-techart: #d63b6b;
 }
 
 /* Dark appearance. prefers-color-scheme is a media query that reports the
@@ -198,7 +212,7 @@
    spacing and shapes are shared by both appearances. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000; /* systemBackground; true black also saves power on OLED screens */
+    --bg: #03040a; /* deep space: near-black with a hint of blue */
     /* Shadows barely show on black, so dark mode shows depth the HIG way:
        raised surfaces are lighter than the background behind them. */
     --bg-elevated: #1c1c1e; /* secondarySystemBackground */
@@ -226,9 +240,20 @@
     --control-thumb: #636366; /* systemGray2, dark */
     --control-thumb-shadow: none;
 
-    --flow-bg: #000000;
-    --flow-fade: rgb(0 0 0 / 0.035); /* longer trails: they vanish fast on black */
-    --flow-lightness: 64%;
+    --space-bg: #03040a;
+    --sky-top: #03040a;
+    --sky-bottom: #070816;
+    --space-star: #ffffff;
+    --space-core: #ffd8a8; /* warm, older stars in the core */
+    --space-arm: #8fb4ff; /* hot, young blue stars in the arms */
+    --space-nebula-1: #7b4dff; /* violet */
+    --space-nebula-2: #00b8c8; /* teal */
+    --space-nebula-3: #ff3d8b; /* magenta */
+    --empire-infrastructure: #3d8bff;
+    --empire-networking: #2fd3b0;
+    --empire-software: #b26bff;
+    --empire-embedded: #ffb23d;
+    --empire-techart: #ff5c8a;
   }
 }
 

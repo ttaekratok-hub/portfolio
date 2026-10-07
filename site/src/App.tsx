@@ -26,6 +26,7 @@ import { GlassFilter } from "./components/GlassFilter";
 import { Hero } from "./components/Hero";
 import { NavBar } from "./components/NavBar";
 import { Projects } from "./components/Projects";
+import { SpaceBackground } from "./components/SpaceBackground";
 
 // navigator.userAgentData (User-Agent Client Hints) exists only in Chromium
 // browsers and isn't in TypeScript's built-in DOM types, so this adds it.
@@ -62,6 +63,7 @@ export function App() {
       {/* Rendered once; on Chromium, glass.css points every .glass element at
           it by id: url(#liquid-glass). */}
       <GlassFilter />
+      <SpaceBackground />
       <NavBar />
       {/* <main> is a landmark: screen-reader users can jump straight to it. */}
       <main id="main">

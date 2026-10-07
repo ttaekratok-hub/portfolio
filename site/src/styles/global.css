@@ -52,7 +52,7 @@ html {
 /* Everything inherits these, so components only set what differs. */
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--space-bg);
   color: var(--label);
   font-family: var(--font-sans);
   font-size: var(--text-body);
@@ -326,52 +326,62 @@ a:hover {
   text-align: center;
 }
 
-/* The animated canvas from FlowField.tsx, stretched behind the text. */
-.flow-field {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-/* Fade the animation into the page so the hero has no hard bottom edge. */
-.hero::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  height: 30%;
-  background: linear-gradient(to bottom, transparent, var(--bg));
-  pointer-events: none;
-}
-
 .hero-content {
   position: relative;
   z-index: 1;
   max-width: 760px;
 }
 
-/* The pause/play button for the animation (FlowField.tsx): a round 44pt gray
-   button in the hero's bottom corner, above the canvas and its fade
-   (z-index), clear of the safe areas. */
+/* The pause/play button for the space animation (SpaceBackground.tsx): a
+   round 44pt Liquid Glass button floating in the bottom corner, clear of the
+   safe areas. It stays put while the page scrolls, like the nav, which is why
+   it's glass and the in-page buttons aren't. */
 .motion-toggle {
-  position: absolute;
-  z-index: 1;
-  right: max(var(--space-5), env(safe-area-inset-right));
-  bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  position: fixed;
+  z-index: 40;
+  right: max(var(--space-4), env(safe-area-inset-right));
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
   display: grid;
   place-items: center;
   width: var(--hit-target);
   height: var(--hit-target);
   padding: 0;
-  border: 1px solid transparent; /* an outline in forced-colors mode */
   border-radius: 50%;
-  background: var(--fill);
   color: var(--label);
   cursor: pointer;
 }
 .motion-toggle svg {
   width: 16px;
   height: 16px;
+}
+
+/* ---------- Space background ---------- */
+
+/* Two layers behind all content, both fixed to the window:
+     body::before  a CSS gradient: what you see before the WebGL scene loads,
+                   and all you see without WebGL
+     .space-canvas the WebGL scene (SpaceBackground.tsx), fading in over it
+   A negative z-index paints them behind the page's normal content. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 30%, color-mix(in srgb, var(--space-nebula-1) 22%, transparent), transparent 70%),
+    linear-gradient(to bottom, var(--sky-top), var(--sky-bottom));
+}
+.space-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.space-canvas.is-ready {
+  opacity: 1;
 }
 
 .eyebrow {

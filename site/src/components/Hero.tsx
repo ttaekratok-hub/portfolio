@@ -1,7 +1,7 @@
-// The first screen: the animated FlowField behind a greeting and two calls to
-// action. The text comes from data/profile.ts.
+// The first screen: a greeting and two calls to action, over the galaxy that
+// SpaceBackground.tsx draws behind the whole page. The text comes from
+// data/profile.ts.
 import { PROFILE } from "../data/profile";
-import { FlowField } from "./FlowField";
 
 export function Hero() {
   return (
@@ -9,7 +9,6 @@ export function Hero() {
     // name becomes a landmark (a "region") that screen-reader users can jump
     // to. id="top" is where the nav's "TT" link goes.
     <section className="hero" id="top" aria-labelledby="hero-title">
-      <FlowField />
       <div className="hero-content">
         {/* Curly braces put a JavaScript value into JSX. React escapes text, so
             a value can never inject HTML or scripts into the page. */}

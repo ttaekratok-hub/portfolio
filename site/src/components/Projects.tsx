@@ -7,7 +7,9 @@
 // JavaScript, and tsconfig's verbatimModuleSyntax requires the marker.
 import { useState } from "react";
 import { FILTERS, PROJECTS, type Filter, type Project } from "../data/projects";
+import { slug } from "../space/layout";
 import { K3sDiagram, NetworkLabDiagram } from "./Diagrams";
+import { GalaxyMap } from "./GalaxyMap";
 
 // Which component draws each diagram named in data/projects.ts.
 const DIAGRAMS = { k3s: K3sDiagram, "network-lab": NetworkLabDiagram };
@@ -20,7 +22,8 @@ function ProjectCard({ project }: { project: Project }) {
   const Diagram = project.diagram ? DIAGRAMS[project.diagram] : undefined;
   return (
     // Cards with a diagram span the whole row (card-wide in global.css).
-    <li className={Diagram ? "card card-wide" : "card"}>
+    // id: the galaxy map links to each card ("#this-portfolio").
+    <li className={Diagram ? "card card-wide" : "card"} id={slug(project.title)}>
       <div className="card-heading">
         <h3 className="card-title">{project.title}</h3>
         <p className="card-meta">
@@ -115,6 +118,7 @@ export function Projects() {
           out from under the finger before the click lands. :focus-visible is the
           browser's own "focused by keyboard" test. "nearest" scrolls as little as
           possible; the `?.` skips it in the test DOM, which lacks the method. */}
+      <GalaxyMap filter={filter} />
       <div className="segmented-scroller">
         <div className="segmented" role="group" aria-label="Filter projects">
           {FILTERS.map(({ id, label }) => (
