@@ -24,8 +24,9 @@ export function Contact() {
         Contact
       </h2>
       <p className="section-intro">
-        Open to software engineering, infrastructure and technical artist roles. Based in {PROFILE.location}.
+        Based in {PROFILE.location}. {PROFILE.relocation}
       </p>
+      <p className="contact-note">{PROFILE.workStatus}</p>
       {/* An inset grouped list, like iOS Settings. A link row is a single <a>,
           so the whole row is the tap target. */}
       <ul className="grouped">

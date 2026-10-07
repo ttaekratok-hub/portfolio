@@ -3,14 +3,16 @@
 // (lint runs `tsc`, the type checker. `npm run build` alone wouldn't catch it:
 // Vite strips the types without checking them, so CI runs lint before building.)
 //
+// Everything here comes from the owner's verified project list. Don't add
+// claims (numbers, tools, results) that aren't confirmed.
+//
 // Try it: change a category below to "devop" and run `npx tsc`.
 // Learn more: https://www.typescriptlang.org/docs/handbook/2/everyday-types.html
 
-// A union of string literals: a Category is exactly one of these four strings
-// and nothing else. Unlike an enum, it adds no code at runtime, because types
-// are erased. Filter is every Category plus "all", for the "show everything"
-// button.
-export type Category = "devops" | "networking" | "engineering" | "techart";
+// A union of string literals: a Category is exactly one of these strings and
+// nothing else. Unlike an enum, it adds no code at runtime, because types are
+// erased. Filter is every Category plus "all", for the "show everything" button.
+export type Category = "infrastructure" | "networking" | "software" | "embedded" | "techart";
 export type Filter = Category | "all";
 
 // The buttons of the filter control in Projects.tsx, in order. Every filter
@@ -18,52 +20,106 @@ export type Filter = Category | "all";
 // (tests/app.test.tsx checks this).
 export const FILTERS: ReadonlyArray<{ id: Filter; label: string }> = [
   { id: "all", label: "All" },
-  { id: "devops", label: "DevOps" },
+  { id: "infrastructure", label: "Cloud & DevOps" },
   { id: "networking", label: "Networking" },
-  { id: "engineering", label: "Engineering" },
+  { id: "software", label: "Software" },
+  { id: "embedded", label: "Embedded" },
   { id: "techart", label: "Tech Art" },
 ];
 
-// An interface describes an object's shape: every project must have all of
-// these fields, with these types. A link's label can only be "Code", "Docs"
-// or "Live"; an empty `links` array means the card shows no links.
+// An interface describes an object's shape. Fields marked `?` are optional.
+//   highlights  short bullet points: what was built, a challenge solved
+//   status      shown as a badge, e.g. "In progress"
+//   diagram     which architecture diagram (components/Diagrams.tsx) to show;
+//               a project with one gets a full-width card
 export interface Project {
   title: string;
+  year: string;
   summary: string;
+  highlights?: string[];
+  status?: "In progress";
   categories: Category[];
   tech: string[];
   links: Array<{ label: "Code" | "Docs" | "Live"; href: string }>;
+  diagram?: "k3s" | "network-lab";
 }
 
-// Annotated as Project[] so each entry is checked right here, and an error
-// points at the entry with the typo.
+// Strongest first. Annotated as Project[] so each entry is checked right here,
+// and an error points at the entry with the typo.
 export const PROJECTS: Project[] = [
   {
     title: "Production Linux & Kubernetes Platform",
+    year: "2026",
     summary:
-      "Designed, built and operate a self-hosted k3s cluster serving live client-facing sites: deployment, troubleshooting and maintenance, CI/CD, and encrypted off-site backups with tested restores.",
-    categories: ["devops"],
-    tech: ["k3s", "Docker", "GitHub Actions", "AWS S3"],
+      "A self-hosted Kubernetes (k3s) cluster serving live client-facing production sites. I own deployment, troubleshooting, upgrades and maintenance.",
+    highlights: [
+      "Commit-to-production CI/CD in GitHub Actions, with automated build and test stages gating every release",
+      "Encrypted off-site backups to Amazon S3, with tested restore procedures",
+      "This portfolio runs on it",
+    ],
+    categories: ["infrastructure"],
+    tech: ["k3s", "Docker", "GitHub Actions", "AWS S3", "Linux"],
     links: [],
+    diagram: "k3s",
   },
   {
     title: "MikroTik OSPF Network Lab",
+    year: "2026",
+    status: "In progress",
     summary:
-      "Two MikroTik CHR routers on Proxmox over isolated Linux bridges, with OSPF, DNS, SNMP and firewall rules, verified from a Kali client with dig, snmpwalk and traceroute.",
+      "Two MikroTik routers (RouterOS v7 CHR) on isolated Proxmox VE bridges running OSPF, plus DNS, SNMP and firewall rules, tested from a Kali Linux client. BGP is a stretch goal.",
     categories: ["networking"],
     tech: ["RouterOS v7", "Proxmox VE", "OSPF", "Kali Linux"],
+    links: [],
+    diagram: "network-lab",
+  },
+  {
+    title: "Public Issue-Reporting App",
+    year: "2024 – 2025",
+    summary:
+      "My senior capstone at Oregon State. I led a 5-person team, gathered requirements from the external stakeholder, Pacific Power, and coordinated delivery. The app earned Pacific Power’s official endorsement.",
+    categories: ["software"],
+    tech: ["Flutter", "Dart", "Firebase (NoSQL)"],
+    links: [],
+  },
+  {
+    title: "STM32 Real-Time Line-Following Robot",
+    year: "2020 – 2021",
+    summary:
+      "Bare-metal C firmware for a line-following robot, built as part of a team at KMITL: sensor acquisition, real-time control logic and motor actuation.",
+    highlights: ["Debugged timing and sensor-noise issues on real hardware"],
+    categories: ["embedded"],
+    tech: ["C", "STM32", "Bare-metal firmware"],
     links: [],
   },
   {
     title: "This Portfolio",
+    year: "2026",
     summary:
       "React and TypeScript, pre-rendered at build time and served by nginx. Tested in CI on a throwaway Kubernetes cluster, then deployed to my k3s cluster by Flux (GitOps) in a locked-down namespace behind a Cloudflare Tunnel.",
-    categories: ["devops", "engineering"],
+    categories: ["infrastructure", "software"],
     tech: ["React", "TypeScript", "Docker", "Kubernetes", "Flux", "GitHub Actions"],
     links: [{ label: "Code", href: "https://github.com/ttaekratok-hub/portfolio" }],
   },
   {
+    title: "Infrastructure as Code",
+    year: "OSU, CS 312",
+    summary: "System Administration coursework: provisioned infrastructure with Terraform and configured servers with Ansible.",
+    categories: ["infrastructure"],
+    tech: ["Terraform", "Ansible", "Linux"],
+    links: [],
+  },
+  {
+    title: "C++ Object-Oriented Programs",
+    year: "OSU",
+    summary: "Games including Go Fish and Hunt the Wumpus, designed with classes, inheritance and polymorphism.",
+    categories: ["software"],
+    tech: ["C++", "OOP"],
+    links: [],
+  },
+  {
     title: "Flow Field Hero",
+    year: "2026",
     summary:
       "The animated background at the top: particles advected through a procedural noise field on a 2D canvas, pausing when off-screen.",
     categories: ["techart"],
