@@ -38,6 +38,11 @@
             const a = document.createElement("a");
             a.href = href;
             a.textContent = label;
+            // Screen readers list links out of context: "Code for This Portfolio".
+            const context = document.createElement("span");
+            context.className = "visually-hidden";
+            context.textContent = " for " + p.title;
+            a.appendChild(context);
             links.appendChild(a);
           });
           li.appendChild(links);

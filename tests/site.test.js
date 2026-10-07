@@ -9,6 +9,7 @@ const html = fs.readFileSync(path.join(SITE, "index.html"), "utf8");
 
 // Files that exist only after a build step or that you add yourself later.
 const GENERATED_OR_OPTIONAL = new Set(["version.json", "resume.pdf"]);
+const CATEGORIES = ["engineering", "techart", "devops", "networking"];
 
 function loadProjects() {
   const sandbox = { window: {} };
@@ -35,7 +36,7 @@ test("every local href/src points at a real file", () => {
 
 test("projects are well formed", () => {
   const projects = loadProjects();
-  const allowed = new Set(["engineering", "techart", "devops"]);
+  const allowed = new Set(CATEGORIES);
   assert.ok(Array.isArray(projects) && projects.length > 0);
   for (const p of projects) {
     assert.equal(typeof p.title, "string");
@@ -53,6 +54,17 @@ test("every filter button matches a known category", () => {
   const used = new Set(loadProjects().flatMap((p) => p.categories));
   for (const f of filters) {
     if (f === "all") continue;
-    assert.ok(used.has(f) || ["engineering", "techart", "devops"].includes(f));
+    assert.ok(used.has(f) || CATEGORIES.includes(f), `filter "${f}" has no projects and is not a known category`);
   }
+});
+
+test("security.txt is valid for at least another month", () => {
+  // RFC 9116 requires an Expires date. CI goes red a month before it lapses:
+  // bump the date (max one year ahead) when that happens.
+  const txt = fs.readFileSync(path.join(SITE, ".well-known", "security.txt"), "utf8");
+  assert.match(txt, /^Contact: mailto:\S+@\S+$/m);
+  const expires = new Date(txt.match(/^Expires: (\S+)$/m)[1]);
+  const days = (expires - Date.now()) / 86400000;
+  assert.ok(days > 30, `security.txt expires in ${Math.floor(days)} days`);
+  assert.ok(days < 366, "Expires should be at most a year ahead");
 });
