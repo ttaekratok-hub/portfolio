@@ -1,0 +1,165 @@
+name: CI/CD
+
+# Pipeline overview:
+#   test ──► build ──► k8s-smoke-test ──► publish ──► deploy
+#   (PRs run the first three; pushes to main run everything.)
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # GHCR image names must be lowercase.
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  # 1) Continuous Integration: lint + unit tests
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+  # 2) Build the Docker image and smoke-test the container
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: portfolio:ci
+          build-args: GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test container
+        run: |
+          docker run -d --name web -p 8080:8080 portfolio:ci
+          for i in $(seq 1 10); do curl -fsS localhost:8080/healthz && break; sleep 1; done
+          curl -fsS localhost:8080/ | grep -q "<title>"
+          curl -fsS localhost:8080/version.json | grep -q "${{ github.sha }}"
+          docker rm -f web
+      - name: Save image for later jobs
+        run: docker save portfolio:ci -o image.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: image.tar
+          retention-days: 1
+
+  # 3) Deploy to a throwaway Kubernetes cluster (kind) inside the runner.
+  #    This proves the manifests, probes and rollout work, no cloud account needed.
+  k8s-smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: ci
+      - name: Load image into kind
+        run: |
+          docker load -i image.tar
+          kind load docker-image portfolio:ci --name ci
+      - name: Deploy with a CI overlay
+        run: |
+          mkdir -p overlay
+          cat > overlay/kustomization.yaml <<EOF
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+            - ../k8s
+          images:
+            - name: $IMAGE
+              newName: portfolio
+              newTag: ci
+          EOF
+          kubectl apply -k overlay
+          kubectl -n portfolio rollout status deployment/portfolio --timeout=120s
+      - name: Hit the Service through a port-forward
+        run: |
+          kubectl -n portfolio port-forward svc/portfolio 8080:80 &
+          for i in $(seq 1 10); do curl -fsS localhost:8080/healthz && break; sleep 1; done
+          curl -fsS localhost:8080/ | grep -q "<title>"
+      - name: Debug info on failure
+        if: failure()
+        run: |
+          kubectl -n portfolio get all -o wide
+          kubectl -n portfolio describe pods
+          kubectl -n portfolio logs -l app=portfolio --tail=50
+
+  # 4) Continuous Delivery: push the tested image to GitHub Container Registry
+  publish:
+    needs: k8s-smoke-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag and push
+        run: |
+          docker load -i image.tar
+          docker tag portfolio:ci "$IMAGE:${{ github.sha }}"
+          docker tag portfolio:ci "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+  # 5) Continuous Deployment to a real cluster.
+  #    Off until you set the repo variable DEPLOY_ENABLED=true and add a
+  #    KUBECONFIG secret to the "production" environment (see README).
+  deploy:
+    needs: publish
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+      - name: Deploy the exact image that passed CI
+        run: |
+          mkdir -p overlay
+          cat > overlay/kustomization.yaml <<EOF
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+            - ../k8s
+          images:
+            - name: $IMAGE
+              newTag: ${{ github.sha }}
+          EOF
+          kubectl apply -k overlay
+          kubectl -n portfolio rollout status deployment/portfolio --timeout=180s

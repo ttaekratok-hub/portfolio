@@ -1,0 +1,14 @@
+{
+  "name": "portfolio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal portfolio site with a Docker + Kubernetes + GitHub Actions CI/CD pipeline.",
+  "scripts": {
+    "lint": "html-validate site/*.html",
+    "test": "node --test tests/*.test.js",
+    "start": "npx --yes serve site -l 3000"
+  },
+  "devDependencies": {
+    "html-validate": "^9.0.0"
+  }
+}
