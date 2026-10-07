@@ -1,5 +1,36 @@
+/*
+ * Page layout and components: the classes the React components use
+ * (className="...") are styled here, except the Liquid Glass material
+ * (.glass, .glass-filter), which lives in glass.css.
+ *
+ * How it fits: App.tsx imports tokens.css (the design values), glass.css
+ * (the Liquid Glass material) and then this file. Every color you see comes
+ * from a token name, not a hex code (the one #000 here is a mask value, not
+ * a visible color), so light/dark mode and Increase Contrast need no
+ * changes in this file. `npm run build` bundles and minifies all three
+ * into one file in dist/assets/ that nginx serves. Nothing is styled inline
+ * in the HTML, which the strict Content-Security-Policy requires
+ * (tests/prerender.test.ts checks).
+ *
+ * Sections follow the page from top to bottom. Squircle corners and the
+ * reduced-motion rules come last so they override what comes before.
+ *
+ * Several features here are "progressive enhancements": newer CSS that
+ * improves the page where supported (text-wrap, corner-shape), while older
+ * browsers ignore it and still show a working page.
+ *
+ * Try it: `npm run dev`, open http://localhost:5173 and resize the window.
+ *   Headings scale smoothly (clamp), card columns reflow (grid), and at
+ *   520px or narrower the nav drops the "TT" mark.
+ * Learn more:
+ *   https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_grid_layout
+ *   https://developer.apple.com/design/human-interface-guidelines/layout
+ */
+
 /* ---------- Base ---------- */
 
+/* border-box: width and height include padding and border, so a 300px box
+   stays 300px wide however much padding it gets. Most sites start with it. */
 *,
 *::before,
 *::after {
@@ -7,12 +38,18 @@
 }
 
 html {
+  /* In-page links (#projects, #about) glide instead of jumping. The browser
+     stops each target 96px below the top of the window, so the fixed nav
+     doesn't cover its heading. */
   scroll-behavior: smooth;
   scroll-padding-top: 96px; /* anchor targets clear the floating nav */
+  /* Stop phone browsers from enlarging text on their own (an iPhone turned
+     sideways, for example); visitors can still zoom. */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
+/* Everything inherits these, so components only set what differs. */
 body {
   margin: 0;
   background: var(--bg);
@@ -21,17 +58,28 @@ body {
   font-size: var(--text-body);
   line-height: var(--leading-body);
   letter-spacing: var(--tracking-body);
+  /* Fonts with an optical-size axis, like Apple's system font, adjust their
+     letter shapes to the size they're drawn at. auto is the default, spelled
+     out here. */
   font-optical-sizing: auto;
+  /* macOS only: thinner grayscale anti-aliasing, which keeps light text on
+     dark backgrounds from looking heavy. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Browsers give headings and paragraphs default margins; spacing comes from
+   the spacing tokens instead. */
 h1,
 h2,
 h3,
 p {
   margin: 0;
 }
+/* balance evens out line lengths so a heading never ends on one lonely word.
+   Browsers only balance short blocks of a few lines, so it's for headings
+   and intros. pretty suits paragraphs: a slower, more careful line-breaking
+   pass that mostly avoids a single short word on the last line. */
 h1,
 h2,
 h3,
@@ -52,12 +100,19 @@ a:hover {
   text-decoration: underline;
 }
 
+/* Focus ring for keyboard users. :focus-visible matches when the browser
+   decides a visible focus indicator helps (moving with Tab: yes; clicking a
+   button with the mouse: usually not). Never remove focus outlines without
+   a replacement: keyboard users rely on them to see where they are. */
 :focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
+/* Hidden on screen but still read by screen readers (display: none would
+   hide it from them too). Projects.tsx uses it for extra link context and
+   for the live region that announces how many projects a filter shows. */
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -67,10 +122,16 @@ a:hover {
   white-space: nowrap;
 }
 
+/* Keeps the phone number in Contact.tsx on one line. */
 .nowrap {
   white-space: nowrap;
 }
 
+/* "Skip to content": the first thing a keyboard user reaches with Tab. It
+   waits above the top of the window and appears when focused, so they can
+   jump past the nav straight to <main>.
+   Try it: load the page and press Tab once (Option-Tab in Safari, which
+   skips links on plain Tab by default). */
 .skip-link {
   position: fixed;
   top: var(--space-3);
@@ -89,6 +150,11 @@ a:hover {
 
 /* ---------- Floating navigation (Liquid Glass) ---------- */
 
+/* position: fixed keeps the nav on screen while the page scrolls under it,
+   which is what makes glass worthwhile: content passes behind it.
+   .nav-wrap is a full-width strip that centers the capsule. pointer-events:
+   none lets clicks pass through the strip's empty sides to the page, and
+   .nav turns them back on for itself. */
 .nav-wrap {
   position: fixed;
   top: var(--space-3);
@@ -120,6 +186,8 @@ a:hover {
   margin-right: var(--space-2);
 }
 
+/* When the links don't fit, they scroll sideways inside the capsule; the
+   scrollbar is hidden. */
 .nav-links {
   display: flex;
   gap: var(--space-1);
@@ -146,11 +214,16 @@ a:hover {
   text-decoration: none;
   background: var(--fill-tertiary);
 }
-/* The current section: a vibrant fill, not more glass (no glass on glass). */
+/* The current section: a vibrant fill, not more glass (no glass on glass).
+   NavBar.tsx sets aria-current while you scroll. Styling the ARIA attribute
+   instead of a separate class means what screen readers announce and what
+   sighted visitors see can never disagree. */
 .nav-links a[aria-current="true"] {
   background: var(--fill);
 }
 
+/* A media query: these rules apply only when the window is 520px wide or
+   less (phones). The "TT" mark goes and the links get tighter. */
 @media (max-width: 520px) {
   .nav {
     padding-left: var(--space-2);
@@ -165,6 +238,9 @@ a:hover {
 
 /* ---------- Buttons (capsules, 44pt tall) ---------- */
 
+/* Hovering grows a button slightly and pressing shrinks it, with the spring
+   curve. Animating transform is cheap: the browser moves pixels it already
+   drew instead of recalculating the page layout. */
 .button {
   display: inline-flex;
   align-items: center;
@@ -184,6 +260,7 @@ a:hover {
 .button:active {
   transform: scale(0.97);
 }
+/* Filled for the main action, glass for the secondary one (Hero.tsx). */
 .button-filled {
   background: var(--tint-fill);
   color: var(--on-tint);
@@ -194,6 +271,10 @@ a:hover {
 
 /* ---------- Hero ---------- */
 
+/* The first screen. svh ("small viewport height") is the window height with
+   a phone browser's toolbars showing, so the hero fits the visible screen
+   and doesn't resize as the toolbars slide away. place-items: center centers
+   the content both ways. */
 .hero {
   position: relative;
   display: grid;
@@ -204,6 +285,7 @@ a:hover {
   text-align: center;
 }
 
+/* The animated canvas from FlowField.tsx, stretched behind the text. */
 .flow-field {
   position: absolute;
   inset: 0;
@@ -235,6 +317,9 @@ a:hover {
   margin-bottom: var(--space-4);
 }
 
+/* Fluid type: clamp(minimum, preferred, maximum). 11vw is 11% of the window
+   width, so the heading grows with the screen but stays between 56px and
+   112px; it scales for windows from about 510px to 1020px wide. */
 .display {
   font-size: clamp(56px, 11vw, 112px);
   line-height: 1.02;
@@ -242,6 +327,9 @@ a:hover {
   letter-spacing: var(--tracking-display);
 }
 
+/* Gradient text: paint a gradient as the background, clip it to the shapes
+   of the letters (background-clip: text) and make the text itself
+   transparent so the gradient shows through. */
 .gradient-text {
   background: linear-gradient(100deg, var(--accent-indigo), var(--accent-purple) 55%, var(--accent-pink));
   -webkit-background-clip: text;
@@ -258,6 +346,7 @@ a:hover {
   letter-spacing: -0.01em;
 }
 
+/* flex-wrap lets the two buttons stack on narrow phones. */
 .cta {
   display: flex;
   flex-wrap: wrap;
@@ -268,12 +357,15 @@ a:hover {
 
 /* ---------- Sections ---------- */
 
+/* The classic centered column: max-width caps the width, and margin auto
+   splits the leftover space into equal side margins. */
 .section {
   max-width: var(--content-width);
   margin: 0 auto;
   padding: var(--space-24) var(--space-5) 0;
 }
 
+/* clamp() accepts tokens too: never smaller than the HIG Large Title. */
 .section-title {
   font-size: clamp(var(--text-large-title), 5vw, 48px);
   line-height: 1.1;
@@ -291,6 +383,9 @@ a:hover {
 
 /* ---------- Segmented control (Liquid Glass) ---------- */
 
+/* The project filter in Projects.tsx: a row of toggle buttons like the iOS
+   segmented control. It's a control floating over the page, so it gets the
+   glass material; the selected segment is a solid "thumb". */
 .segmented {
   display: inline-flex;
   max-width: 100%;
@@ -302,6 +397,12 @@ a:hover {
   scrollbar-width: none;
 }
 
+/* Phones: the filter row can be wider than the screen, so it scrolls
+   sideways. The negative margin lets the scroller reach the screen edges,
+   and the matching padding keeps the first button lined up with the text
+   above. mask-image fades the ends (black = visible, transparent = hidden)
+   to hint there's more; the left fade sits in the padding, so it only shows
+   once you've scrolled. The whole glass capsule slides as one piece. */
 @media (max-width: 640px) {
   .segmented-scroller {
     margin: 0 calc(-1 * var(--space-5));
@@ -316,6 +417,7 @@ a:hover {
   }
 }
 
+/* font: inherit, because buttons don't inherit the page font by default. */
 .segment {
   min-height: 38px;
   padding: 0 var(--space-4);
@@ -335,6 +437,8 @@ a:hover {
 .segment:hover {
   background: var(--fill-tertiary);
 }
+/* Projects.tsx sets aria-pressed on the active filter: screen readers say
+   "pressed", and this rule draws the thumb from the same attribute. */
 .segment[aria-pressed="true"] {
   background: var(--control-thumb);
   box-shadow: var(--control-thumb-shadow);
@@ -343,6 +447,12 @@ a:hover {
 
 /* ---------- Cards (content layer: standard material, not glass) ---------- */
 
+/* Responsive columns without a media query: repeat(auto-fill, minmax(300px,
+   1fr)) makes as many columns of at least 300px as fit, then shares the
+   leftover space equally (1fr). auto-fill keeps empty columns when there are
+   fewer cards than columns, so the two Art cards stay the same width as the
+   project cards. (The skills grid below uses auto-fit, which collapses empty
+   columns so its cards stretch to fill the row.) */
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -375,6 +485,10 @@ a:hover {
   line-height: 1.47;
 }
 
+/* margin-top: auto takes all the spare space above the tags, pushing them
+   (and the links after them) to the bottom of the card. Cards in a grid row
+   stretch to the same height, so every card's tags and links sit along the
+   bottom edge, however long its summary is. */
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -410,7 +524,9 @@ a:hover {
   padding: 0 var(--space-3);
 }
 
-/* Concentric corners: 24px card - 12px padding = 12px. */
+/* Concentric corners: 24px card - 12px padding = 12px, so the gap between
+   the two curves stays even. The stripes are a repeating gradient: 16px of
+   fill, 16px of nothing, at -45 degrees. */
 .art-placeholder {
   display: grid;
   place-items: center;
@@ -432,6 +548,7 @@ a:hover {
 
 /* ---------- Inset grouped lists (iOS Settings style) ---------- */
 
+/* p + p ("adjacent sibling"): every paragraph after the first is secondary. */
 .about-text {
   display: grid;
   gap: var(--space-4);
@@ -445,6 +562,9 @@ a:hover {
   color: var(--label-secondary);
 }
 
+/* Rows grouped in one rounded box: the timeline (About.tsx) and the contact
+   rows (Contact.tsx). overflow: hidden clips each row's hover background to
+   the box's rounded corners. */
 .grouped {
   margin: 0;
   padding: 0;
@@ -464,7 +584,10 @@ a:hover {
   padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
   color: var(--label);
 }
-/* Hairline separators, inset from the leading edge like iOS. */
+/* Hairline separators, inset from the leading edge like iOS. li + li skips
+   the first row, so lines appear only between rows. On high-resolution
+   (Retina) screens 0.5px is a single device pixel; other screens round it
+   up to 1px. */
 .grouped > li + li > .grouped-row::before {
   content: "";
   position: absolute;
@@ -478,6 +601,9 @@ a.grouped-row:hover {
   background: var(--fill-tertiary);
 }
 
+/* Flex items won't shrink below their content's width by default
+   (min-width: auto). min-width: 0 lets the title column shrink, so long text
+   wraps instead of pushing the row wider than the screen. */
 .row-main {
   display: grid;
   flex: 1;
@@ -493,6 +619,7 @@ a.grouped-row:hover {
   font-size: var(--text-subhead);
   line-height: var(--leading-subhead);
 }
+/* A long email address may break anywhere rather than overflow the row. */
 .row-detail {
   text-align: right;
   overflow-wrap: anywhere;
@@ -504,6 +631,7 @@ a.grouped-row:hover {
   color: var(--label-secondary);
 }
 
+/* Phones: timeline dates move under the title instead of beside it. */
 @media (max-width: 520px) {
   .timeline .grouped-row {
     flex-direction: column;
@@ -548,6 +676,14 @@ a.grouped-row:hover {
 
 /* ---------- Continuous ("squircle") corners where supported ---------- */
 
+/* A normal rounded corner is a quarter circle: the curve starts abruptly
+   where the straight edge ends. Apple's continuous corners ease into the
+   curve, which looks smoother; the shape is close to a "squircle" (between
+   a square and a circle). corner-shape: squircle draws it where supported.
+   A squircle hugs the corner more, so it looks less round at the same
+   radius; that's why the radii here are larger. Browsers without
+   corner-shape skip this whole block and keep the corners above.
+   Try it: in Chrome DevTools, untick corner-shape on a card to compare. */
 @supports (corner-shape: squircle) {
   .card,
   .grouped,
@@ -567,6 +703,13 @@ a.grouped-row:hover {
 
 /* ---------- Motion ---------- */
 
+/* prefers-reduced-motion matches when the visitor turns on Reduce Motion
+   (iPhone, Mac) or a similar setting; motion on screen can cause dizziness
+   or nausea for some people. This turns off smooth scrolling, transitions
+   and the button scaling, and FlowField.tsx draws one still frame instead
+   of animating. !important beats the more specific transition rules above.
+   Learn more:
+   https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

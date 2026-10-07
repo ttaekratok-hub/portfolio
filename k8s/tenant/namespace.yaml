@@ -1,6 +1,24 @@
 # The portfolio's namespace is created by the cluster admin (you), not by
 # Flux's portfolio Kustomization, which may only touch what's inside it.
 # "restricted" Pod Security rejects root, privileged and hostPath pods here.
+#
+# A namespace is a named section of the cluster. Names, permissions (a Role),
+# network rules and quotas can all be scoped to one, which is what makes it a
+# sandbox.
+#
+# Pod Security Admission is built into Kubernetes. These labels choose one of
+# three Pod Security Standards (privileged: no limits; baseline: blocks known
+# privilege escalations; restricted: also requires hardening such as running as
+# non-root and dropping Linux capabilities) and a mode (enforce rejects pods
+# that break it; audit and warn only report). enforce-version: latest means the
+# newest version of the standard this cluster knows.
+# Debugging tip: enforce checks Pods, not Deployments. A Deployment whose pod
+# template breaks the rules is accepted, but its pods never appear;
+# `kubectl -n portfolio describe replicaset` shows why.
+#
+# Try it: kubectl -n portfolio run pss-test --image=nginx --dry-run=server
+#   is refused with a "violates PodSecurity" message (dry-run creates nothing).
+# Learn more: https://kubernetes.io/docs/concepts/security/pod-security-standards/
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -12,6 +30,16 @@ metadata:
 # A cap on what the namespace can use, so a bad commit can't starve the
 # mail server and other apps on the same Pi. The site needs ~3 small pods
 # during a rolling update.
+#
+# The limits are totals for the whole namespace, checked whenever something is
+# created: a request that would go over is refused. Because cpu and memory
+# requests and memory limits are capped, every container here has to declare
+# them (see `resources:` in k8s/base/deployment.yaml). No PersistentVolumeClaims
+# means no persistent storage, and the Service counts allow one NodePort and no
+# cloud load balancer.
+#
+# Try it: kubectl -n portfolio describe resourcequota portfolio   (used vs hard)
+# Learn more: https://kubernetes.io/docs/concepts/policy/resource-quotas/
 apiVersion: v1
 kind: ResourceQuota
 metadata:

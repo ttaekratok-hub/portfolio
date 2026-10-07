@@ -1,9 +1,21 @@
 // Add or edit projects here. TypeScript checks every entry, so a typo in a
 // category or a missing field fails `npm run lint` before it reaches the site.
+// (lint runs `tsc`, the type checker. `npm run build` alone wouldn't catch it:
+// Vite strips the types without checking them, so CI runs lint before building.)
+//
+// Try it: change a category below to "devop" and run `npx tsc`.
+// Learn more: https://www.typescriptlang.org/docs/handbook/2/everyday-types.html
 
+// A union of string literals: a Category is exactly one of these four strings
+// and nothing else. Unlike an enum, it adds no code at runtime, because types
+// are erased. Filter is every Category plus "all", for the "show everything"
+// button.
 export type Category = "devops" | "networking" | "engineering" | "techart";
 export type Filter = Category | "all";
 
+// The buttons of the filter control in Projects.tsx, in order. Every filter
+// needs at least one project, or it would show an empty grid
+// (tests/app.test.tsx checks this).
 export const FILTERS: ReadonlyArray<{ id: Filter; label: string }> = [
   { id: "all", label: "All" },
   { id: "devops", label: "DevOps" },
@@ -12,6 +24,9 @@ export const FILTERS: ReadonlyArray<{ id: Filter; label: string }> = [
   { id: "techart", label: "Tech Art" },
 ];
 
+// An interface describes an object's shape: every project must have all of
+// these fields, with these types. A link's label can only be "Code", "Docs"
+// or "Live"; an empty `links` array means the card shows no links.
 export interface Project {
   title: string;
   summary: string;
@@ -20,6 +35,8 @@ export interface Project {
   links: Array<{ label: "Code" | "Docs" | "Live"; href: string }>;
 }
 
+// Annotated as Project[] so each entry is checked right here, and an error
+// points at the entry with the typo.
 export const PROJECTS: Project[] = [
   {
     title: "Production Linux & Kubernetes Platform",

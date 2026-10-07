@@ -1,22 +1,36 @@
+// The first screen: the animated FlowField behind a greeting and two calls to
+// action. The text comes from data/profile.ts.
 import { PROFILE } from "../data/profile";
 import { FlowField } from "./FlowField";
 
 export function Hero() {
   return (
+    // aria-labelledby names this section after its heading. A <section> with a
+    // name becomes a landmark (a "region") that screen-reader users can jump
+    // to. id="top" is where the nav's "TT" link goes.
     <section className="hero" id="top" aria-labelledby="hero-title">
       <FlowField />
       <div className="hero-content">
+        {/* Curly braces put a JavaScript value into JSX. React escapes text, so
+            a value can never inject HTML or scripts into the page. */}
         <p className="eyebrow">{PROFILE.role}</p>
+        {/* The page's only <h1>. Sections use <h2> and cards <h3>, an outline
+            that screen-reader users navigate by. */}
         <h1 className="display" id="hero-title">
           Hi, I’m <span className="gradient-text">{PROFILE.nickname}</span>.
         </h1>
         <p className="lede">
           I’m {PROFILE.name}. {PROFILE.intro}
         </p>
+        {/* Links styled as buttons: they go somewhere, so they stay <a>.
+            <button> is for actions on the page, like the project filters. */}
         <div className="cta">
           <a className="button button-filled" href="#projects">
             See my work
           </a>
+          {/* site/public/ is copied into the site as-is, so /resume.pdf is
+              site/public/resume.pdf. tests/app.test.tsx fails if a local link
+              points at a missing file. `glass` adds the Liquid Glass material. */}
           <a className="button button-glass glass" href="/resume.pdf">
             Résumé (PDF)
           </a>

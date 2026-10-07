@@ -1,8 +1,34 @@
+# The CI/CD pipeline, as a GitHub Actions workflow. GitHub runs the workflow
+# files in .github/workflows/ on its own machines whenever one of their `on:`
+# events happens.
+#   CI (continuous integration): every change is linted, tested and built
+#     automatically, so problems show up before they are merged.
+#   CD (continuous delivery/deployment): a change that passed is packaged and
+#     released automatically, with no manual steps.
+#
+# Vocabulary: a workflow has jobs. Each job runs on a fresh virtual machine (a
+# "runner") and is a list of steps. A step either runs shell commands (`run:`)
+# or uses a ready-made action (`uses: owner/repo@version`). Jobs share nothing,
+# not even files, unless something is handed over explicitly (an artifact).
+#
+# `${{ ... }}` is an expression: GitHub fills it in before the step starts.
+# Inside `run:` scripts, values like $IMAGE or $GITHUB_SHA are ordinary shell
+# variables, read while the script runs. Only trusted values, like the commit
+# SHA, are put into scripts with ${{ }}; text someone else controls, like a PR
+# title, would be pasted into the script and could run as code.
+#
+# Learn more: https://docs.github.com/en/actions
 name: CI/CD
 
 # Pipeline overview:
 #   test ──► build ──► k8s-smoke-test ──► publish ──► deploy (moves `deploy` branch) ··► Flux on the Pi 5
 #   (PRs run the first three; pushes to main run everything.)
+#
+# Triggers:
+#   push to main       a merge or direct push to main runs the whole pipeline
+#   pull_request       every PR runs the checks, on a temporary merge of the PR
+#                      into its target branch, so you see problems before merging
+#   workflow_dispatch  adds a "Run workflow" button on the Actions tab
 on:
   push:
     branches: [main]
@@ -11,24 +37,37 @@ on:
 
 # A newer push cancels an older run of the same kind on the same branch. The
 # event name is in the key so a manual run can't cancel a push's deploy.
+# (Runs whose `group` evaluates to the same string never overlap.)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job gets a GITHUB_TOKEN, a temporary credential for GitHub's API that
+# expires when the job ends. Least privilege: by default it may only read the
+# repository. Any permission not listed is "none", and the two jobs that need
+# more (publish, deploy) ask for exactly that in their own `permissions:`.
 permissions:
   contents: read
 
 env:
-  # GHCR image names must be lowercase.
+  # GHCR image names must be lowercase. github.repository is "owner/repo", so
+  # this is ghcr.io/ttaekratok-hub/portfolio.
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   # 1) Continuous Integration: lint + typecheck, tests, then a production
-  #    build whose pre-rendered HTML is validated.
+  #    build whose pre-rendered HTML is validated. These are the same npm
+  #    scripts you can run locally (package.json). Steps run top to bottom and
+  #    the job stops at the first failing one.
   test:
     runs-on: ubuntu-latest
     steps:
+      # Clone the repo at the commit being tested. Actions are pinned to a major
+      # version (@v4); pinning to a full commit SHA is stricter, since a tag can
+      # be moved to different code.
       - uses: actions/checkout@v4
+      # `cache: npm` saves npm's download cache between runs, keyed on a hash of
+      # package-lock.json, so `npm ci` doesn't download every package again.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -40,12 +79,23 @@ jobs:
       - run: npm run validate:html
 
   # 2) Build the Docker image and smoke-test the container
+  #    `needs: test` makes this job wait for `test`, and skip if it failed.
+  #    Jobs without `needs` would all start at once, in parallel.
   build:
     needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Buildx is the docker CLI plugin that drives BuildKit, Docker's builder.
+      # This sets up a builder that supports the GitHub Actions layer cache used
+      # below and, in `publish`, multi-architecture images.
       - uses: docker/setup-buildx-action@v3
+      # `load: true` puts the image into the runner's own Docker, so the next
+      # step can `docker run` it; nothing is pushed anywhere. `build-args` fills
+      # the Dockerfile's `ARG GIT_SHA`. `type=gha` stores the layer cache in
+      # GitHub's Actions cache, so unchanged layers (like `npm ci`) are reused
+      # in the next run; `mode=max` caches the build stage's layers too, not
+      # just the final image's.
       - name: Build image
         uses: docker/build-push-action@v6
         with:
@@ -55,6 +105,10 @@ jobs:
           build-args: GIT_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # A smoke test: start the real container and poke it with curl. It is
+      # quick, and it catches a broken image before anything deploys it.
+      # curl flags: -f fails on HTTP errors (4xx/5xx), -sS hides the progress
+      # bar but still prints errors, -I fetches only the response headers.
       - name: Smoke test container
         run: |
           docker run -d --name web -p 8080:8080 portfolio:ci
@@ -71,6 +125,9 @@ jobs:
           done
           curl -fsS localhost:8080/.well-known/security.txt | grep -q "^Contact:"
           docker rm -f web
+      # The next job runs on a different, fresh machine, so hand the image over:
+      # save it as a tar file and upload it as a workflow artifact. It's only
+      # needed during this run, so it is deleted after a day.
       - name: Save image for later jobs
         run: docker save portfolio:ci -o image.tar
       - uses: actions/upload-artifact@v4
@@ -81,6 +138,9 @@ jobs:
 
   # 3) Deploy to a throwaway Kubernetes cluster (kind) inside the runner.
   #    This proves the manifests, probes and rollout work, no cloud account needed.
+  #    kind ("Kubernetes IN Docker") runs a whole cluster as Docker containers,
+  #    one container per node, and disappears with the runner.
+  #    Learn more: https://kind.sigs.k8s.io/
   k8s-smoke-test:
     needs: build
     runs-on: ubuntu-latest
@@ -89,13 +149,26 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: image
+      # Creates a one-node cluster; the node is a container named ci-control-plane.
       - uses: helm/kind-action@v1
         with:
           cluster_name: ci
+      # The node has its own image store and can't see the runner's Docker
+      # images. `kind load` copies the image in, so it never has to be pushed
+      # to a registry.
       - name: Load image into kind
         run: |
           docker load -i image.tar
           kind load docker-image portfolio:ci --name ci
+      # The heredoc writes a small kustomize overlay on top of the Pi overlay
+      # (overlays can stack) that only swaps the GHCR image for the local
+      # portfolio:ci. Because the tag isn't `latest`, Kubernetes defaults to
+      # `imagePullPolicy: IfNotPresent` and uses the loaded image without trying
+      # to download it.
+      # `--as=...` is impersonation: kind's admin asks the API server to treat
+      # the request as coming from Flux's limited account, so RBAC (role-based
+      # access control, k8s/tenant/rbac.yaml) checks it exactly as on the Pi.
+      # `rollout status` waits until the new pods pass their readiness probes.
       - name: Deploy the Pi overlay the way Flux does on the Pi
         run: |
           mkdir -p overlay
@@ -115,11 +188,17 @@ jobs:
           kubectl apply -k k8s/tenant
           kubectl apply -k overlay --as=system:serviceaccount:flux-system:portfolio-reconciler
           kubectl -n portfolio rollout status deployment/portfolio --timeout=120s
+      # The node's internal IP is reachable from the runner, just as the Pi's
+      # LAN IP is from cloudflared. The jsonpath query picks that one field out
+      # of the node's status. 30738 is set in k8s/overlays/pi/service-patch.yaml.
       - name: Hit the NodePort on the node's IP, like the tunnel on the Pi does
         run: |
           NODE_IP=$(kubectl get node ci-control-plane -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
           for i in $(seq 1 10); do curl -fsS "http://$NODE_IP:30738/healthz" && break; sleep 1; done
           curl -fsS "http://$NODE_IP:30738/" | grep -q "<title>"
+      # Normally a failed step skips the rest; `if: failure()` runs this one only
+      # when something failed, and prints what you'd check first: the objects,
+      # their events (describe) and the container logs.
       - name: Debug info on failure
         if: failure()
         run: |
@@ -130,22 +209,37 @@ jobs:
   # 4) Continuous Delivery: push a multi-arch image (x86 + arm64 for the Pi 5)
   #    to GitHub Container Registry. The amd64 layers come from the build
   #    job's cache; arm64 is built under QEMU emulation.
+  #    One tag then points at both images (an "image index"), and each machine
+  #    pulls the one for its own CPU.
+  #    No `strategy.matrix` (one job per architecture) is needed: one buildx call
+  #    builds both. A matrix on native arm64 runners would avoid emulation, but
+  #    needs an extra step to merge the two images under one tag.
+  #    `if:` skips this job for pull requests and manual runs.
+  #    Try it: docker buildx imagetools inspect ghcr.io/ttaekratok-hub/portfolio:latest
   publish:
     needs: k8s-smoke-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Job-level permissions replace the workflow-level ones: packages: write
+    # lets this job's GITHUB_TOKEN push images to GHCR.
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
+      # QEMU lets the x86 runner execute arm64 programs. Thanks to
+      # --platform=$BUILDPLATFORM in the Dockerfile, the only step that needs it
+      # is the final stage's `RUN printf`; the Node build runs natively, once.
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
+      # Logs in with this job's temporary token: no password is stored anywhere.
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Two tags for the same image: the commit SHA, which never changes and is
+      # what the Pi runs, and `latest`, which moves with every publish.
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -167,19 +261,36 @@ jobs:
   #    (which this token isn't allowed to push).
   #    Least privilege per job: this one may push commits but not packages;
   #    publish may push packages but not commits.
+  #    GitOps means git is the single source of truth for what runs, and an
+  #    agent inside the cluster (Flux) pulls it and applies it. In this "pull"
+  #    model CI never holds credentials for the Pi, and nothing on the internet
+  #    connects into it. In the "push" model, CI would run `kubectl apply`
+  #    against the cluster itself.
   deploy:
     needs: publish
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # A GitHub Environment: each deploy is recorded on the repo's Deployments
+    # page, and Settings > Environments is where you could add protection rules
+    # such as a required reviewer.
     environment: production
     permissions:
       contents: write
     # Never let two deploys race each other.
+    # `cancel-in-progress: false` queues a new deploy instead of stopping one
+    # halfway. At most one run waits per group; a newer one replaces it, so
+    # the newest commit is the one that deploys next. (The workflow-level
+    # `concurrency:` at the top still cancels a whole older run on main, deploy
+    # included, when a newer push arrives; this group is a second safety net.)
     concurrency:
       group: gitops-deploy
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4 # the exact commit this run tested
+      # kustomize's `images:` field rewrites the tag of every matching image. It
+      # is added here rather than committed to main, so main never needs a
+      # commit per deploy. The tag is quoted so YAML always reads it as text.
+      # `kubectl kustomize` renders the result, and grep proves the pin worked.
       - name: Pin the image that was just published
         run: |
           cat >> k8s/overlays/pi/kustomization.yaml <<EOF
@@ -189,6 +300,12 @@ jobs:
               newTag: "$GITHUB_SHA"
           EOF
           kubectl kustomize k8s/overlays/pi | grep -q "image: $IMAGE:$GITHUB_SHA"
+      # An orphan branch starts with no history. `git read-tree --empty` clears
+      # the staging area (the files on disk stay), `git add k8s` stages only
+      # k8s/, and the force push replaces whatever `deploy` held before.
+      # actions/checkout left the job's token configured for git, which is how
+      # `git push` is allowed. Pushes made with that token never start another
+      # workflow run, so this can't loop.
       - name: Publish k8s/ to the deploy branch (Flux picks it up within a minute)
         run: |
           git config user.name "github-actions[bot]"

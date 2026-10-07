@@ -1,8 +1,37 @@
+# Files Docker leaves out of the build context.
+#
+# The build context is the folder of files the Docker builder may read: the
+# `.` in `docker build -t portfolio .`, and `context: .` in the CI workflow.
+# COPY can only copy files from the context, and files listed here are
+# removed from it, as if they didn't exist.
+#
+# The Dockerfile copies just what the build needs (package.json and the lock
+# file, vite.config.ts, tsconfig.json, scripts/, site/, nginx.conf), so this
+# list isn't what keeps the image small today. It's a safety net: if a
+# `COPY . .` is ever added, none of the files below can slip into the image,
+# and they're never sent to the builder (which may be a remote machine).
+#
+# Rules: one pattern per line, matched from the root of the context; a
+# comment line must start with # in the very first column.
+#
+# Try it: docker build --progress=plain -t portfolio .
+#   The "load build context" step is the context being sent to the builder.
+# Learn more: https://docs.docker.com/build/concepts/context/
+
+# Git history and CI config: not part of the site.
 .git
 .github
+# The Kubernetes manifests are deployed by Flux, not baked into the image.
 k8s
+# Tests run in CI's test job, before the image is built.
 tests
+# The image runs its own `npm ci` on Linux. A local node_modules can hold
+# native binaries built for another system, and it's large.
 node_modules
+# Build output: the image builds it fresh, so a stale local copy must never
+# be mixed in.
 dist
 dist-ssr
+# README.md and HANDOFF.md. `*.md` only matches at the root of the context;
+# `**/*.md` would match in every folder.
 *.md
