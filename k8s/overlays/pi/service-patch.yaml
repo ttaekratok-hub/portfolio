@@ -1,0 +1,8 @@
+# k3s's built-in ServiceLB exposes a LoadBalancer Service on the node itself,
+# on any port (NodePorts are limited to 30000-32767).
+- op: replace
+  path: /spec/type
+  value: LoadBalancer
+- op: replace
+  path: /spec/ports/0/port
+  value: 57738
