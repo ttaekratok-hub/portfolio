@@ -405,14 +405,20 @@ body::before {
    body's background here), and a page can't draw into them. Without the fade,
    the scene's navy edge met those near-black strips in a hard line, like
    letterbox bars; with it, the strips read as more of the night sky.
-   inset: 0 (not 100lvh like the canvas) on purpose: this layer should follow
-   the visible edges, and as plain CSS it costs nothing to resize. Same
-   z-index as the canvas but later in the page, so it paints over the canvas
-   and under the content. */
+   Same box as the canvas (top 0, 100lvh), so the fade ends exactly where the
+   canvas does. With inset: 0 it ended at the visible area's bottom instead,
+   just above Safari's floating toolbar, and the canvas carried on unfaded
+   behind the toolbar: a bright band of stars under the fade. Same z-index as
+   the canvas but later in the page, so it paints over the canvas and under
+   the content. */
 html::after {
   content: "";
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100lvh;
   z-index: -1;
   pointer-events: none;
   /* Eased, not linear: solid right at the edge, then quickly clear, so the
