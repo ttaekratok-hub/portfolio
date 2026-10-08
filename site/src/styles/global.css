@@ -381,9 +381,34 @@ body::before {
   height: 100vh;
   height: 100lvh;
   z-index: -2;
+  /* The same edge fade the WebGL scene draws (sky.ts, createEdgeFade), for
+     when this gradient is what shows: while the scene loads (about a second
+     and a half on an iPhone) and for good without WebGL (an iPhone in
+     Lockdown Mode, for one). Solid over the part of each edge Safari covers
+     with its own strip, then eased out; the same sizes as background.ts's
+     measureEdges(). Once the canvas is visible it covers all of this. */
+  --edge-top: env(safe-area-inset-top, 0px);
+  --edge-bottom: env(safe-area-inset-bottom, 0px);
   background:
+    linear-gradient(
+      to bottom,
+      var(--space-bg) var(--edge-top),
+      color-mix(in srgb, var(--space-bg) 45%, transparent) calc(var(--edge-top) + 20px),
+      transparent calc(var(--edge-top) + 56px)
+    ),
+    linear-gradient(
+      to top,
+      var(--space-bg) var(--edge-bottom),
+      color-mix(in srgb, var(--space-bg) 45%, transparent) calc(var(--edge-bottom) + 24px),
+      transparent calc(var(--edge-bottom) + 64px)
+    ),
     radial-gradient(ellipse 80% 60% at 50% 30%, color-mix(in srgb, var(--space-nebula-1) 22%, transparent), transparent 70%),
     linear-gradient(to bottom, var(--sky-top), var(--sky-bottom));
+}
+@media (pointer: coarse) {
+  body::before {
+    --edge-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); /* Safari's taller bottom strip */
+  }
 }
 .space-canvas {
   position: fixed;
