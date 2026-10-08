@@ -399,61 +399,6 @@ body::before {
 .space-canvas.is-ready {
   opacity: 1;
 }
-/* The scene fades into the page's background color at the window's top and
-   bottom edges. On iPhone, Safari paints the strips behind the status bar and
-   under its floating toolbar itself, in a color it takes from the page (the
-   body's background here), and a page can't draw into them. Without the fade,
-   the scene's navy edge met those near-black strips in a hard line, like
-   letterbox bars; with it, the strips read as more of the night sky.
-   Same box as the canvas (top 0, 100lvh). With inset: 0 the fade ended
-   above Safari's floating toolbar while the canvas carried on behind it (a
-   bright band of stars); at the box's own edges it hid under Safari's
-   strips. So the fade is solid over the part the strips cover (below). Same z-index as
-   the canvas but later in the page, so it paints over the canvas and under
-   the content. */
-html::after {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100vh;
-  height: 100lvh;
-  z-index: -1;
-  pointer-events: none;
-  /* How much of each edge Safari covers with its own strip, measured from
-     the screen's edge (this box starts at the very top and, at 100lvh, runs
-     to the very bottom). The fade stays solid that far, so it starts
-     clearing right where the strip ends, wherever the toolbar is:
-       top     the status bar: the safe-area inset (env(), 0 elsewhere;
-               needs viewport-fit=cover in index.html)
-       bottom  the home indicator's safe area, plus a margin on touch screens:
-               on an iPhone, Safari's bottom strip measured about 50pt against
-               a 34pt safe area. */
-  --edge-top: env(safe-area-inset-top, 0px);
-  --edge-bottom: env(safe-area-inset-bottom, 0px);
-  /* Eased, not linear: solid up to the covered edge, then quickly clear, so
-     the galaxy under the hero keeps nearly all of its stars. */
-  background:
-    linear-gradient(
-      to bottom,
-      var(--space-bg) var(--edge-top),
-      color-mix(in srgb, var(--space-bg) 45%, transparent) calc(var(--edge-top) + 20px),
-      transparent calc(var(--edge-top) + 56px)
-    ),
-    linear-gradient(
-      to top,
-      var(--space-bg) var(--edge-bottom),
-      color-mix(in srgb, var(--space-bg) 45%, transparent) calc(var(--edge-bottom) + 24px),
-      transparent calc(var(--edge-bottom) + 64px)
-    );
-}
-@media (pointer: coarse) {
-  html::after {
-    --edge-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
-  }
-}
-
 .eyebrow {
   color: var(--label-secondary);
   font-size: var(--text-subhead);

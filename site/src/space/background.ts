@@ -43,7 +43,7 @@
 // those two. See chooseStillFrame().
 import { MathUtils, PerspectiveCamera, Scene, Vector2, WebGLRenderTarget } from "three";
 import { createGalaxyLayers } from "./background/galaxyLayers";
-import { createComposite, createSky, srgb } from "./background/sky";
+import { createComposite, createEdgeFade, createSky, srgb } from "./background/sky";
 import { createStarfield, starCount } from "./background/starfield";
 import { createSharedUniforms } from "./background/uniforms";
 import { createEngine, lowPowerDevice } from "./engine";
@@ -144,7 +144,9 @@ export function createBackground(canvas: HTMLCanvasElement, initial: SceneOption
   galaxy.bulge.layers.set(SOFT);
   galaxy.stars.layers.set(SHARP);
   galaxy.uniforms.starRefDepth.value = DEPTH; // stars have their set size at this distance
-  scene.add(sky.mesh, composite.mesh, galaxy.tilt, starfield.points);
+  const edgeFade = createEdgeFade(shared);
+  edgeFade.mesh.layers.set(SHARP);
+  scene.add(sky.mesh, composite.mesh, galaxy.tilt, starfield.points, edgeFade.mesh);
 
   let options = initial;
   let time = STILL_TIME;
@@ -216,6 +218,7 @@ export function createBackground(canvas: HTMLCanvasElement, initial: SceneOption
     }
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    measureEdges();
     measureZones();
     if (!animated()) chooseStillFrame();
   }
@@ -237,6 +240,28 @@ export function createBackground(canvas: HTMLCanvasElement, initial: SceneOption
     layoutWidth = width;
     layout.set(width, toolbarOnly ? Math.max(layout.y, height) : height);
     return toolbarOnly;
+  }
+
+  // How much of the window's top and bottom edges the browser covers with its
+  // own strips (sky.ts, createEdgeFade, explains why that matters). CSS knows
+  // the device's safe areas as env(safe-area-inset-*) (they need
+  // viewport-fit=cover, set in index.html); JavaScript can't read env()
+  // directly, so a hidden probe element takes them as padding and reports the
+  // computed size. Elsewhere they're 0. On touch screens the bottom gets 24px
+  // more: on an iPhone, Safari's bottom strip measured about 50pt against a
+  // 34pt safe area.
+  function measureEdges() {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:fixed;visibility:hidden;pointer-events:none;" +
+      "padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)";
+    document.body.append(probe);
+    const style = getComputedStyle(probe);
+    const top = parseFloat(style.paddingTop) || 0;
+    const bottom = parseFloat(style.paddingBottom) || 0;
+    probe.remove();
+    edgeFade.material.uniforms.uEdgeTop!.value = top;
+    edgeFade.material.uniforms.uEdgeBottom!.value = bottom + (coarsePointer.matches ? 24 : 0);
   }
 
   // The hero's text block, the hero itself and the first line after it, in
@@ -511,6 +536,7 @@ export function createBackground(canvas: HTMLCanvasElement, initial: SceneOption
   srgb(palette.core, galaxy.colors.uCore.value);
   srgb(palette.arm, galaxy.colors.uArm.value);
   srgb(palette.nebula[2], galaxy.colors.uPink.value);
+  srgb(palette.background, edgeFade.material.uniforms.uColor!.value);
 
   function apply(next: SceneOptions) {
     const wasAnimated = animated();
@@ -546,6 +572,7 @@ export function createBackground(canvas: HTMLCanvasElement, initial: SceneOption
       softTarget.dispose();
       sky.dispose();
       composite.dispose();
+      edgeFade.dispose();
       starfield.dispose();
       galaxy.dispose();
     },
