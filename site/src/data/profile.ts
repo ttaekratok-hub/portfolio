@@ -100,6 +100,12 @@ export const EDUCATION: ReadonlyArray<{ school: string; degree: string; when: st
       "Operating Systems",
       "System Administration",
       "Parallel Programming",
+      "Intro to Computer Graphics",
+      "Computer Graphics Shaders",
+      "Computer Animation",
+      "Intro to the Visual Arts",
+      "New Media Futures",
+      "Web Design and Programming",
     ],
   },
   {
@@ -129,6 +135,7 @@ export const SKILLS: ReadonlyArray<{ group: string; items: string[] }> = [
   { group: "Cloud & DevOps", items: ["AWS (S3)", "Kubernetes (k3s)", "Docker", "GitHub Actions CI/CD", "Terraform", "Ansible", "Git (branching, pull requests, code review)"] },
   { group: "Systems", items: ["Linux (Ubuntu, Kali)", "Proxmox VE", "nginx", "Windows Server", "Active Directory"] },
   { group: "Networking", items: ["TCP/IP", "DNS", "HTTP / TLS", "Wireshark", "Nmap"] },
+  { group: "Graphics & Art", items: ["OpenGL", "GLSL", "Blender", "Clip Studio Paint", "Procreate"] },
   { group: "Data", items: ["SQL & relational design", "Entity-relationship diagrams", "NoSQL (Firebase)"] },
   { group: "Ways of working", items: ["Requirements analysis", "Technical documentation", "Cross-region stakeholders", "Claude Code (AI-assisted development)"] },
 ];
