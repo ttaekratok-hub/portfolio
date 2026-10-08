@@ -399,6 +399,28 @@ body::before {
 .space-canvas.is-ready {
   opacity: 1;
 }
+/* The scene fades into the page's background color at the window's top and
+   bottom edges. On iPhone, Safari paints the strips behind the status bar and
+   under its floating toolbar itself, in a color it takes from the page (the
+   body's background here), and a page can't draw into them. Without the fade,
+   the scene's navy edge met those near-black strips in a hard line, like
+   letterbox bars; with it, the strips read as more of the night sky.
+   inset: 0 (not 100lvh like the canvas) on purpose: this layer should follow
+   the visible edges, and as plain CSS it costs nothing to resize. Same
+   z-index as the canvas but later in the page, so it paints over the canvas
+   and under the content. */
+html::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  /* Eased, not linear: solid right at the edge, then quickly clear, so the
+     galaxy under the hero keeps nearly all of its stars. */
+  background:
+    linear-gradient(to bottom, var(--space-bg), color-mix(in srgb, var(--space-bg) 45%, transparent) 20px, transparent 56px),
+    linear-gradient(to top, var(--space-bg), color-mix(in srgb, var(--space-bg) 45%, transparent) 24px, transparent 64px);
+}
 
 .eyebrow {
   color: var(--label-secondary);
