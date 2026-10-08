@@ -125,6 +125,9 @@ jobs:
             done
           done
           curl -fsS localhost:8080/.well-known/security.txt | grep -q "^Contact:"
+          # A visit Cloudflare received over plain http:// is sent to https://.
+          curl -sSI -H "Host: ttaekratok.com" -H "X-Forwarded-Proto: http" localhost:8080/about | grep -qi "^location: https://ttaekratok.com/about" \
+            || { echo "http:// is not redirected to https://"; exit 1; }
           docker rm -f web
       # The next job runs on a different, fresh machine, so hand the image over:
       # save it as a tar file and upload it as a workflow artifact. It's only
