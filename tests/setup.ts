@@ -11,10 +11,11 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
-// jsdom has no canvas; the hero animation already copes with a null context.
+// jsdom has no canvas or WebGL; the space scenes check for WebGL first
+// (webglAvailable() in space/palette.ts) and simply don't start.
 // jsdom's own getContext() also returns null, but it reports a "Not
 // implemented" error first, which would clutter the test output. This stub
-// returns null quietly, so FlowField.tsx takes its "no canvas" path. The `as`
+// returns null quietly, so the scenes take their "no WebGL" path. The `as`
 // cast tells TypeScript to accept the simpler function in place of the real,
 // overloaded getContext signature.
 if (typeof HTMLCanvasElement !== "undefined") {

@@ -7,14 +7,45 @@ The owner (aiming for a first software-engineering or technical-artist job) is
 building this portfolio site and **learning GitHub Actions, Docker, Kubernetes
 and CI/CD along the way**. Explain the *why* of each step.
 
+## Where development happens (since 2026-10-08)
+**Develop in Claude Code on the web (cloud sessions), never on the Pi 5.**
+On 2026-10-07/08 testing the three.js site on the Pi launched hundreds of
+headless Chromium instances that were never closed; their /tmp profiles
+(a RAM disk) plus software-GPU rendering filled 16 GB RAM and swap, took
+down the Cloudflare tunnels and broke the owner's other services.
+
+- Cloud session: clone, `npm ci`, lint/test/build, screenshots with the
+  pre-installed Chromium/Playwright are all fine there. Still close every
+  browser you open (try/finally) and stop dev servers before finishing.
+- Ship changes as a branch + PR into `main`. Merging to `main` is the
+  deploy: CI builds and publishes the image, moves the `deploy` branch, and
+  Flux on the Pi pulls it within a minute. Nobody copies files to the Pi.
+- The Pi 5 only hosts: k3s + Flux + the Cloudflare tunnel. No `npm`, no
+  dev servers, no builds, no headless browsers there. If something on the
+  Pi needs checking, give the owner read-only commands to run (see README
+  "Day to day") instead.
+
+## Space theme: verified, awaiting PR (2026-10-08)
+`space-theme`, `space-bg` and `space-map` are merged together on
+`claude/ecstatic-euler-5phb35`. The two unverified WIP commits were
+reviewed and kept, with fixes: two leftover debug globals removed (they kept
+disposed scenes alive), the map redraws immediately on resize (no flicker),
+and the territory shader holds every claim (MAX_CLAIMS 88). An older phone
+bug was fixed too: About cards and their links pushed the page to 600px wide
+on a 390px phone. Lint, 79 tests, build and HTML validation pass; checked in
+headless Chromium at desktop and phone widths, light and dark mode, and with
+Reduce Motion, with no console errors. Next: open the PR into `main`.
+
 ## Where things are
-- Repo `ttaekratok-hub/portfolio` (public), default branch `main`. On the Pi
-  it's cloned at `~/Desktop/ttaekratok_website`.
+- Repo `ttaekratok-hub/portfolio`, default branch `main`. GitHub is the only
+  copy: the Pi has no clone, and its write deploy key was removed (2026-10-08).
 - `site/`: React + TypeScript (Vite), pre-rendered to static HTML at build
   time (scripts/prerender.mjs) so crawlers/web filters see real content.
   Content lives in `site/src/data/` (profile.ts, projects.ts). Apple HIG design:
   system colors (tokens.css, contrast-tested), SF via system font / Inter
-  fallback, Liquid Glass only on the floating nav (glass.css). Art section has
+  fallback, Liquid Glass only on floating controls (nav, pause button).
+  Space theme with Three.js (site/src/space/): background scene and a galaxy
+  map of projects, loaded after hydration; daytime sky in light mode. Art section has
   two "under construction" placeholders; the MikroTik-Lab GitHub repo is empty,
   so it isn't linked yet.
 - Pipeline (`.github/workflows/ci-cd.yml`): test → build → k8s-smoke-test
