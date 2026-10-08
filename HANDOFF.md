@@ -7,9 +7,43 @@ The owner (aiming for a first software-engineering or technical-artist job) is
 building this portfolio site and **learning GitHub Actions, Docker, Kubernetes
 and CI/CD along the way**. Explain the *why* of each step.
 
+## Where development happens (since 2026-10-08)
+**Develop in Claude Code on the web (cloud sessions), never on the Pi 5.**
+On 2026-10-07/08 testing the three.js site on the Pi launched hundreds of
+headless Chromium instances that were never closed; their /tmp profiles
+(a RAM disk) plus software-GPU rendering filled 16 GB RAM and swap, took
+down the Cloudflare tunnels and broke the owner's other services.
+
+- Cloud session: clone, `npm ci`, lint/test/build, screenshots with the
+  pre-installed Chromium/Playwright are all fine there. Still close every
+  browser you open (try/finally) and stop dev servers before finishing.
+- Ship changes as a branch + PR into `main`. Merging to `main` is the
+  deploy: CI builds and publishes the image, moves the `deploy` branch, and
+  Flux on the Pi pulls it within a minute. Nobody copies files to the Pi.
+- The Pi 5 only hosts: k3s + Flux + the Cloudflare tunnel. No `npm`, no
+  dev servers, no builds, no headless browsers there. If something on the
+  Pi needs checking, give the owner read-only commands to run (see README
+  "Day to day") instead.
+
+## Work in progress: space theme (not merged yet)
+Three branches, pushed from the Pi on 2026-10-08:
+- `space-theme`: shared foundation (engine, palette, galaxy generator, map
+  layout, tests) + docs. Base for the two below.
+- `space-bg`: deep-space galaxy background and daytime sky, on top of
+  `space-theme`. Its last commit is **WIP, unverified**: edits saved from the
+  Pi during the overload, never linted/tested/reviewed.
+- `space-map`: interactive Stellaris-style galaxy map of projects, same
+  situation (last commit is unverified WIP).
+
+Suggested next step: check out `space-theme`, run the local checks, then
+review the WIP commit on each feature branch (keep, fix or drop it), merge
+`space-bg` and `space-map` into one PR into `main`, and look at the result
+in a headless browser in the cloud session (desktop + mobile width, light
+and dark mode, `prefers-reduced-motion`).
+
 ## Where things are
-- Repo `ttaekratok-hub/portfolio` (public), default branch `main`. On the Pi
-  it's cloned at `~/Desktop/ttaekratok_website`.
+- Repo `ttaekratok-hub/portfolio`, default branch `main`. The Pi still has
+  an old clone at `~/Desktop/ttaekratok_website`; don't develop there.
 - `site/`: React + TypeScript (Vite), pre-rendered to static HTML at build
   time (scripts/prerender.mjs) so crawlers/web filters see real content.
   Content lives in `site/src/data/` (profile.ts, projects.ts). Apple HIG design:

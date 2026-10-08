@@ -101,7 +101,9 @@ docker run --rm -p 8080:8080 portfolio   # http://localhost:8080
 curl -sI http://localhost:8080/          # in another terminal: the headers nginx.conf adds
 ```
 
-On the Pi this repo lives at `~/Desktop/ttaekratok_website`.
+Do this on your computer or in a cloud dev environment, not on the Pi: the
+Pi only runs the built site, and dev servers and browser testing there once
+used up all of its memory.
 
 CI's `test` job runs the same scripts: `npm ci`, `npm run lint`, `npm test`,
 `npm run build` and `npm run validate:html`. Running them before you push
