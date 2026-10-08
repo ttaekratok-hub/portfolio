@@ -77,7 +77,7 @@ export const PROJECTS: Project[] = [
     title: "Public Issue-Reporting App",
     year: "2024 – 2025",
     summary:
-      "My year-long senior capstone at Oregon State. I led a 5-person team, gathered requirements from the external stakeholder, Pacific Power, and coordinated delivery. The app earned Pacific Power’s official endorsement.",
+      "My year-long senior capstone at Oregon State. I led a 5-person team and coordinated delivery. At the capstone showcase, Pacific Power reviewed our project and gave our team an award.",
     categories: ["software"],
     tech: ["Flutter", "Dart", "Firebase (NoSQL)"],
     links: [],
