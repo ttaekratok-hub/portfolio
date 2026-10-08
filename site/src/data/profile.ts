@@ -61,7 +61,7 @@ export const EXPERIENCE: ReadonlyArray<Job> = [
     when: "May 2026 – now",
     points: [
       "Build and maintain production websites for three clients on Linux servers with nginx",
-      "Built an admin interface for notemari.com so its non-technical owner can manage content herself",
+      "Built an admin interface for notemari.com so its non-technical owner can manage content himself",
     ],
     links: [
       { label: "cnhstudy.academy", href: "https://cnhstudy.academy" },
@@ -70,10 +70,14 @@ export const EXPERIENCE: ReadonlyArray<Job> = [
     ],
   },
   {
-    title: "Self-directed engineering study",
-    org: "While working part-time in retail",
+    title: "Self-directed software engineering study",
+    org: "While working two jobs, about 60 hours a week",
     when: "Jun 2025 – May 2026",
-    points: ["Built my Kubernetes platform from the ground up"],
+    points: [
+      "Team Member at both Market of Choice and Taco Bell at the same time",
+      "Kept studying software engineering in my own time",
+      "Built my Kubernetes platform from the ground up",
+    ],
   },
 ];
 
