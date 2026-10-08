@@ -15,7 +15,7 @@ import { Projects } from "../site/src/components/Projects";
 import { PROJECTS } from "../site/src/data/projects";
 import { layoutSystems, slug } from "../site/src/space/layout";
 import type { GalaxyMapCallbacks } from "../site/src/space/map";
-import { COLLAPSED_WIDTH, matchesFilter, placeLabels, shortLabel, type LabelInput } from "../site/src/space/map/labels";
+import { matchesFilter, placeLabels, shortLabel, type LabelInput } from "../site/src/space/map/labels";
 import { buildNetwork, type MapNode } from "../site/src/space/map/network";
 import { MAX_SYSTEMS } from "../site/src/space/map/shared";
 import type { MapSystem, SceneOptions } from "../site/src/space/types";
@@ -50,6 +50,8 @@ vi.mock("../site/src/space/map", () => ({
           y: 40 + i * 40,
           visible: s.id !== fake.offscreen,
           depth: i / systems.length,
+          ringX: 0,
+          ringY: 0,
         })),
       );
     return {
@@ -338,7 +340,6 @@ describe("label placement", () => {
     const items = [label("n", 300, 170), label("s", 300, 230), label("e", 360, 200), label("w", 240, 200), label("c", 300, 200)];
     const placed = placeLabels(items, bounds, new Map());
     expect(placed.get("c")!.collapsed).toBe(true);
-    expect(COLLAPSED_WIDTH).toBeLessThan(44);
   });
 
   test("keeps labels off an obstacle such as the detail panel", () => {

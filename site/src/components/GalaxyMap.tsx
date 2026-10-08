@@ -12,6 +12,19 @@
 //     reader with no extra code, and the browser does the hit-testing.
 // The project cards below stay the main way to read everything; the map is
 // a second, more playful way in.
+//
+// The page structure, and why:
+//   .galaxy-map           the whole thing (role="group"); buttons and panel
+//                         are positioned against it
+//     .galaxy-map-frame   the rounded window with the canvas (it clips the
+//                         canvas only)
+//     ul > li > button    one per system, floating over the frame
+//            + section    the detail panel, right after its system's button
+// The panel comes right after its button in the page's order, so Tab goes
+// from a system into its panel and then on to the next system. On wide
+// screens it floats over the right side of the map; on phones it sits below
+// the map, in the normal flow of the page, so the whole map stays visible and
+// nothing in the panel needs its own scrolling.
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import "../styles/map.css";
@@ -24,18 +37,25 @@ import type { GalaxyMapScene } from "../space/types";
 import { useSceneOptions, useSpaceScene } from "./SpaceBackground";
 
 const SYSTEMS = layoutSystems();
+/** Systems closer than this to the map's edge (CSS pixels) get no button: it would hang outside. */
+const EDGE = 10;
+/** Room between the selection ring and the selected system's label, in CSS pixels. */
+const RING_GAP = 6;
 
 export function GalaxyMap({ filter, onShowAll }: { filter: Filter; onShowAll?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
-  // Per-frame bookkeeping for the labels, kept in refs: it changes up to 60
+  // Per-frame bookkeeping for the labels, kept in refs: it changes up to 30
   // times a second and never needs a re-render.
   const labelSizes = useRef(new Map<string, { width: number; height: number }>());
   const placements = useRef(new Map<string, Placement>());
+  const lastPositions = useRef<MapScreenPosition[]>([]);
   const measuredWidth = useRef(0);
   const selectedRef = useRef<string | null>(null);
+  const pointerOver = useRef(false);
   const [selected, setSelected] = useState<string | null>(null);
   // No map possible: no WebGL, or it failed to start. Starts false, also in
   // the pre-rendered HTML, so hydration matches; the effect below finds out.
@@ -43,62 +63,87 @@ export function GalaxyMap({ filter, onShowAll }: { filter: Filter; onShowAll?: (
   const options = useSceneOptions();
   const headingId = useId();
 
+  // Where the detail panel is, in the map's coordinates, and whether it
+  // covers the map (wide screens) or sits below it (phones).
+  const panelBox = () => {
+    const panel = panelRef.current;
+    const frame = frameRef.current;
+    if (!panel || !frame) return null;
+    return {
+      left: panel.offsetLeft,
+      top: panel.offsetTop,
+      right: panel.offsetLeft + panel.offsetWidth,
+      bottom: panel.offsetTop + panel.offsetHeight,
+      overMap: panel.offsetTop < frame.offsetHeight,
+    };
+  };
+
   // Move each button to its system and pick its label's side. The scene calls
-  // this every time the camera moves, so it sets styles directly instead of
-  // going through React state (no re-render per frame). Setting element.style
-  // from JavaScript is allowed by the Content-Security-Policy.
+  // this every time the systems move on screen, so it sets styles directly
+  // instead of going through React state (no re-render per frame). Setting
+  // element.style from JavaScript is allowed by the Content-Security-Policy.
   // All reads (sizes) come before all writes (styles): alternating them would
   // make the browser recompute the layout on every read ("layout thrashing").
-  const place = (positions: MapScreenPosition[]) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+  const place = (positions: MapScreenPosition[], settled = false) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    lastPositions.current = positions;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
     if (width !== measuredWidth.current) {
       labelSizes.current.clear(); // the text may have wrapped or the font loaded
       measuredWidth.current = width;
     }
+    // The camera has come to rest: lay the labels out afresh, rather than
+    // keep the sides they took while the view was moving (zoomed in, say).
+    if (settled) placements.current = new Map();
     // Keep systems out from under the detail panel (and so out of the Tab
-    // order: a focused button must never hide behind it).
-    // The labels keep clear of the panel too.
-    const panel = panelRef.current;
-    const panelRect = panel && {
-      left: panel.offsetLeft - 16,
-      top: panel.offsetTop - 16,
-      right: panel.offsetLeft + panel.offsetWidth + 16,
-      bottom: panel.offsetTop + panel.offsetHeight + 16,
-    };
+    // order: a focused button must never hide behind it). The labels keep
+    // clear of the panel too. A panel below the map (phones) covers nothing.
+    const box = panelBox();
+    const panelRect = box?.overMap
+      ? { left: box.left - 16, top: box.top - 16, right: box.right + 16, bottom: box.bottom + 16 }
+      : null;
     const covered = (x: number, y: number) =>
       !!panelRect && x > panelRect.left && x < panelRect.right && y > panelRect.top && y < panelRect.bottom;
 
-    const shown: Array<MapScreenPosition & { width: number; height: number }> = [];
+    const shown: Array<MapScreenPosition & { width: number; height: number; gapX: number; gapY: number }> = [];
     for (const p of positions) {
       const button = buttonRefs.current.get(p.id);
-      if (!button || !p.visible || p.x < 6 || p.x > width - 6 || p.y < 6 || p.y > height - 6 || covered(p.x, p.y)) continue;
+      const inside = p.x >= EDGE && p.x <= width - EDGE && p.y >= EDGE && p.y <= height - EDGE;
+      if (!button || !p.visible || !inside || covered(p.x, p.y)) continue;
       let size = labelSizes.current.get(p.id);
       const label = button.firstElementChild as HTMLElement | null;
-      // Measured while showing its text (a collapsed label is just a dot).
-      if (!size && label?.offsetWidth && !("collapsed" in button.dataset)) {
+      // Measured while showing its text (a collapsed label isn't displayed).
+      if (!size && label?.offsetWidth) {
         size = { width: label.offsetWidth, height: label.offsetHeight };
         labelSizes.current.set(p.id, size);
       }
       // Not measurable yet (hidden until now): a guess from the text length.
-      shown.push({ ...p, ...(size ?? { width: 16 + 7.5 * (label?.textContent?.length ?? 12), height: 24 }) });
+      shown.push({
+        ...p,
+        ...(size ?? { width: 16 + 7.5 * (label?.textContent?.length ?? 12), height: 24 }),
+        // The selected system's label goes outside its selection ring.
+        gapX: p.ringX ? Math.round(p.ringX + RING_GAP) : 0,
+        gapY: p.ringY ? Math.round(p.ringY + RING_GAP) : 0,
+      });
     }
     // Most important first: the selected system, then the nearest ones.
     shown.sort((a, b) => Number(b.id === selectedRef.current) - Number(a.id === selectedRef.current) || a.depth - b.depth);
     placements.current = placeLabels(shown, { width, height }, placements.current, panelRect ? [panelRect] : []);
 
-    for (const p of positions) {
-      const button = buttonRefs.current.get(p.id);
-      if (!button) continue;
-      const placement = placements.current.get(p.id);
-      button.hidden = !placement; // not placed: off-screen or under the panel
-      if (!placement) continue;
+    for (const p of shown) {
+      const button = buttonRefs.current.get(p.id)!;
+      const placement = placements.current.get(p.id)!;
       button.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
       // Nearer systems' labels on top of farther ones. A custom property, not
       // z-index itself, so map.css can still raise a hovered or focused one.
       button.style.setProperty("--z", String(10 + Math.round((1 - p.depth) * 20)));
+      // A wider gap for the selected system (map.css adds it to the padding).
+      for (const [name, gap] of [["--gap-x", p.gapX], ["--gap-y", p.gapY]] as const) {
+        if (gap) button.style.setProperty(name, `${gap}px`);
+        else button.style.removeProperty(name);
+      }
       if (button.dataset.side !== placement.side) button.dataset.side = placement.side;
       if (placement.collapsed !== ("collapsed" in button.dataset)) {
         if (placement.collapsed) button.dataset.collapsed = "";
@@ -106,26 +151,31 @@ export function GalaxyMap({ filter, onShowAll }: { filter: Filter; onShowAll?: (
       }
       button.dataset.placed = "";
     }
+    // Not placed (off-screen or under the panel): hidden, and so out of the
+    // Tab order and the accessibility tree.
+    for (const [id, button] of buttonRefs.current) {
+      const hide = !placements.current.has(id);
+      if (button.hidden !== hide) button.hidden = hide;
+    }
   };
 
   // Where the selected system should appear: the middle of the part of the
   // map the detail panel leaves free. The panel is a column on the right on
-  // wide screens and a bottom sheet on phones (map.css).
+  // wide screens, and below the map on phones (map.css), leaving all of it.
   const focusPoint = () => {
-    const container = containerRef.current;
-    const panel = panelRef.current;
-    if (!container || !panel) return { x: 0.5, y: 0.5 };
-    if (panel.offsetWidth < container.clientWidth * 0.7) {
-      return { x: panel.offsetLeft / 2 / container.clientWidth, y: 0.5 };
-    }
-    return { x: 0.5, y: panel.offsetTop / 2 / container.clientHeight };
+    const box = panelBox();
+    const width = canvasRef.current?.clientWidth;
+    if (!box?.overMap || !width) return { x: 0.5, y: 0.5 };
+    return { x: box.left / 2 / width, y: 0.5 };
   };
 
   const { ready, scene } = useSpaceScene(
     canvasRef,
     (canvas, initial) =>
       import("../space/map")
-        .then((m) => m.createGalaxyMap(canvas, SYSTEMS, { onScreenPositions: place, focusPoint }, initial))
+        .then((m) =>
+          m.createGalaxyMap(canvas, SYSTEMS, { onScreenPositions: place, focusPoint }, initial, containerRef.current ?? undefined),
+        )
         .catch((error: unknown) => {
           // WebGL is there but failed (blocked, out of memory...): say so
           // instead of leaving an empty box.
@@ -159,19 +209,61 @@ export function GalaxyMap({ filter, onShowAll }: { filter: Filter; onShowAll?: (
   }, [selected]);
   useEffect(() => {
     map.current?.highlight(filter);
+    // Dimmed labels use a lighter weight, so they're measured again and laid
+    // out afresh at once (the camera may be still, with no new positions coming).
+    labelSizes.current.clear();
+    if (lastPositions.current.length) place(lastPositions.current);
+    // place() only reads refs; it's left out of the dependencies on purpose,
+    // as a new copy of it is made on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, ready, map]);
   useEffect(() => {
     if (ready) map.current?.focus(selected);
   }, [ready, map, selected]);
 
-  // Escape closes the panel, wherever focus is (after a click, Safari leaves
-  // focus on the page, not the button). If focus was inside the panel, it
-  // goes back to the system's button rather than being lost with the panel.
+  // On phones the panel opens below the map, possibly below the screen's
+  // edge: scroll just enough to show it ("nearest"), smoothly unless the
+  // visitor asked for less motion. (jsdom lacks scrollIntoView, hence ?.)
+  useEffect(() => {
+    if (!selected || panelBox()?.overMap !== false) return;
+    panelRef.current?.scrollIntoView?.({ block: "nearest", behavior: options.reduceMotion ? "auto" : "smooth" });
+    // Only when the selection changes, not when the motion setting does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
+  // Track the pointer over the map, for the Escape key below.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const enter = () => (pointerOver.current = true);
+    const leave = () => (pointerOver.current = false);
+    container.addEventListener("pointerenter", enter);
+    container.addEventListener("pointerleave", leave);
+    return () => {
+      container.removeEventListener("pointerenter", enter);
+      container.removeEventListener("pointerleave", leave);
+    };
+  }, []);
+
+  // Escape closes the panel when it's about the map: focus is in the map,
+  // the pointer is over it, or focus is nowhere in particular (on the page
+  // itself, where Safari leaves it after a click) while the map is on
+  // screen. Escape meant for something else (another component, a dialog)
+  // is left alone. If focus was inside the panel, it goes back to the
+  // system's button rather than being lost with the panel.
   useEffect(() => {
     if (!selected) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
-      const wasInPanel = panelRef.current?.contains(document.activeElement);
+      const container = containerRef.current;
+      if (!container) return;
+      const active = document.activeElement;
+      const rect = container.getBoundingClientRect();
+      const onScreen = rect.bottom > 0 && rect.top < window.innerHeight;
+      const aboutMap =
+        container.contains(active) || pointerOver.current || ((!active || active === document.body) && onScreen);
+      if (!aboutMap) return;
+      const wasInPanel = panelRef.current?.contains(active);
       setSelected(null);
       if (wasInPanel) buttonRefs.current.get(selected)?.focus();
     };
@@ -185,10 +277,10 @@ export function GalaxyMap({ filter, onShowAll }: { filter: Filter; onShowAll?: (
     ? `${project.title}, ${project.year}${project.status ? `, ${project.status}` : ""}. ${project.summary}`
     : "";
 
-  // The container and canvas are always rendered, also in the pre-rendered
-  // HTML, so the canvas exists when useSpaceScene's effect runs after
-  // hydration. The system buttons appear only once the scene is drawing:
-  // before that (or without WebGL) they'd have nowhere to go.
+  // The container, frame and canvas are always rendered, also in the
+  // pre-rendered HTML, so the canvas exists when useSpaceScene's effect runs
+  // after hydration. The system buttons appear only once the scene is
+  // drawing: before that (or without WebGL) they'd have nowhere to go.
   return (
     <div
       ref={containerRef}
@@ -196,7 +288,12 @@ export function GalaxyMap({ filter, onShowAll }: { filter: Filter; onShowAll?: (
       role="group"
       aria-label="Galaxy map of projects"
     >
-      <canvas ref={canvasRef} className="galaxy-map-canvas" aria-hidden="true" />
+      <div ref={frameRef} className="galaxy-map-frame">
+        <canvas ref={canvasRef} className="galaxy-map-canvas" aria-hidden="true" />
+        {unavailable && (
+          <p className="galaxy-map-note">The interactive map needs WebGL; every project is listed below.</p>
+        )}
+      </div>
       <p className="visually-hidden">Every project on this map is also listed below the filter.</p>
       {ready && (
         <ul className="galaxy-map-systems">
@@ -204,8 +301,8 @@ export function GalaxyMap({ filter, onShowAll }: { filter: Filter; onShowAll?: (
             const info = PROJECT_BY_ID.get(system.id)!;
             const isSelected = selected === system.id;
             return (
-              // data-category sets the --empire color for the label's dot
-              // and the panel (map.css).
+              // data-category sets the --empire color for the selected
+              // label's ring and the panel (map.css).
               <li key={system.id} data-category={system.category}>
                 <button
                   ref={(el) => {
@@ -220,9 +317,7 @@ export function GalaxyMap({ filter, onShowAll }: { filter: Filter; onShowAll?: (
                   aria-pressed={isSelected}
                   onClick={() => setSelected(isSelected ? null : system.id)}
                 >
-                  <span className="galaxy-system-label">
-                    <span className="galaxy-system-text">{shortLabel(system.id, system.title)}</span>
-                  </span>
+                  <span className="galaxy-system-label">{shortLabel(system.id, system.title)}</span>
                 </button>
                 {/* Right after its button in the page's order, so the next
                     Tab goes into the panel, then on to the next system. */}
@@ -279,9 +374,6 @@ export function GalaxyMap({ filter, onShowAll }: { filter: Filter; onShowAll?: (
       <p className="visually-hidden" aria-live="polite">
         {announcement}
       </p>
-      {unavailable && (
-        <p className="galaxy-map-note">The interactive map needs WebGL; every project is listed below.</p>
-      )}
     </div>
   );
 }

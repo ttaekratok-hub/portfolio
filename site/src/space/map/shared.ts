@@ -80,3 +80,33 @@ export const GLSL_HASH = /* glsl */ `
     return fract(p.x * p.y);
   }
 `;
+
+/**
+ * GLSL for soft, cloud-like patterns: "value noise" and "fbm".
+ *
+ * Value noise: put a random number (the hash above) on every corner of a
+ * square grid, and blend smoothly between the four corners around each
+ * point. The result is a gentle, random landscape of hills one grid cell
+ * wide.
+ * fbm ("fractal Brownian motion"): add a few layers ("octaves") of it, each
+ * twice as detailed and about half as strong as the one before. Big soft
+ * shapes with smaller wisps on their edges: how clouds and nebulas look.
+ * Two octaves are plenty for a backdrop and keep it cheap.
+ * Learn more: https://thebookofshaders.com/13/
+ * (Needs GLSL_HASH before it.)
+ */
+export const GLSL_NOISE = /* glsl */ `
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f); // smoothstep: no creases at the grid lines
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+  }
+  float fbm(vec2 p) {
+    return 0.66 * noise(p) + 0.34 * noise(p * 2.03 + vec2(17.1, 9.3));
+  }
+`;

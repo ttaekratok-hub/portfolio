@@ -2,9 +2,10 @@
  * The galaxy map of projects (components/GalaxyMap.tsx).
  *
  * The map is a window onto a WebGL scene (space/map.ts): the canvas fills
- * it, and real buttons sit on top, moved into place by GalaxyMap.tsx. Like the
- * cards, it scrolls with the page, so it uses the standard card materials,
- * not Liquid Glass (that's for floating controls only).
+ * the rounded frame, and real buttons float over it, moved into place by
+ * GalaxyMap.tsx. Like the cards, it scrolls with the page, so it uses the
+ * standard card materials, not Liquid Glass (that's for floating controls
+ * only).
  *
  * Colors come from tokens.css. The map's own few are defined below as local
  * custom properties, built from those tokens.
@@ -14,12 +15,22 @@
   /* Label capsules: the elevated surface color, nearly opaque, so their
      text keeps its contrast over any star behind them. */
   --map-label-bg: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  /* The buttons and the panel are positioned against this box. */
   position: relative;
   /* A stacking context of its own: the buttons' z-index values (set from
      JavaScript) only order them inside the map, never above the nav. */
   isolation: isolate;
-  width: 100%;
   margin: var(--space-4) 0 var(--space-6);
+  /* Touch: vertical swipes scroll the page and pinches zoom it, as anywhere
+     else. The map never takes over touch gestures. */
+  touch-action: pan-y pinch-zoom;
+}
+
+/* The window onto the scene. It clips the canvas to its rounded corners;
+   the labels float above it unclipped (labels.ts keeps them inside), so a
+   focused label is never cut off. */
+.galaxy-map-frame {
+  position: relative;
   aspect-ratio: 16 / 9;
   max-height: 580px;
   border: 1px solid var(--separator);
@@ -30,13 +41,10 @@
   background:
     radial-gradient(ellipse 55% 50% at 50% 52%, color-mix(in srgb, var(--space-nebula-1) 16%, transparent), transparent 75%),
     linear-gradient(to bottom, var(--sky-top), var(--sky-bottom));
-  /* Touch: vertical swipes scroll the page and pinches zoom it, as anywhere
-     else. The map never takes over touch gestures. */
-  touch-action: pan-y pinch-zoom;
 }
 /* Phones: taller than wide, so the round galaxy fills more of it. */
 @media (max-width: 640px) {
-  .galaxy-map {
+  .galaxy-map-frame {
     aspect-ratio: 4 / 5;
   }
 }
@@ -92,16 +100,20 @@
 /* A button is the 44 x 44 target around its star (the HIG minimum) plus the
    label next to it, so the label is clickable too.
    Its position comes from JavaScript (style.transform = translate(x, y), the
-   star's center). The separate `translate` property then shifts the button
-   so the star sits half a target (22px) inside its near edge; the two
-   combine instead of overwriting each other. The padding is that 22px plus
-   the gap before the label: 12px beside the star, 10px above or below it
-   (SIDE_GAP and STACK_GAP in space/map/labels.ts, which picks the side and
-   sets data-side). */
+   star's center on the canvas; top and left skip the frame's 1px border).
+   The separate `translate` property then shifts the button so the star sits
+   half a target (22px) inside its near edge; the two combine instead of
+   overwriting each other. The padding is that 22px plus the gap before the
+   label: 12px beside the star, 10px above or below it (SIDE_GAP and
+   STACK_GAP in space/map/labels.ts, which picks the side and sets
+   data-side), or wider for the selected system, to clear its selection ring
+   (--gap-x and --gap-y, set from JavaScript). */
 .galaxy-system {
+  --pad-x: calc(var(--hit-target) / 2 + var(--gap-x, 12px));
+  --pad-y: calc(var(--hit-target) / 2 + var(--gap-y, 10px));
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 1px;
+  left: 1px;
   /* Nearer systems on top (--z comes from JavaScript); the selected,
      hovered or focused one above them all, but under the detail panel. */
   z-index: var(--z, 10);
@@ -109,7 +121,7 @@
   align-items: center;
   min-width: var(--hit-target);
   min-height: var(--hit-target);
-  padding: 0 0 0 34px;
+  padding: 0 0 0 var(--pad-x);
   border: 0;
   border-radius: var(--radius-capsule);
   background: none;
@@ -121,17 +133,17 @@
 }
 .galaxy-system[data-side="left"] {
   flex-direction: row-reverse;
-  padding: 0 34px 0 0;
+  padding: 0 var(--pad-x) 0 0;
   translate: calc(-100% + var(--hit-target) / 2) -50%;
 }
 .galaxy-system[data-side="above"] {
   flex-direction: column-reverse;
-  padding: 0 0 32px;
+  padding: 0 0 var(--pad-y);
   translate: -50% calc(-100% + var(--hit-target) / 2);
 }
 .galaxy-system[data-side="below"] {
   flex-direction: column;
-  padding: 32px 0 0;
+  padding: var(--pad-y) 0 0;
   translate: -50% calc(var(--hit-target) / -2);
 }
 .galaxy-system[aria-pressed="true"] {
@@ -153,12 +165,13 @@
   visibility: hidden;
 }
 
+/* The label: a small capsule with the system's name. No color dot: the star
+   right next to it already shows the empire's color. */
 .galaxy-system-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   min-height: 24px;
-  padding: 3px 10px 3px 8px;
+  padding: 3px 10px;
   border-radius: var(--radius-capsule);
   background: var(--map-label-bg);
   box-shadow: 0 0 0 1px var(--separator);
@@ -174,28 +187,15 @@
 /* Phones: the HIG's smallest text style (caption 1), so labels crowd less. */
 @media (max-width: 640px) {
   .galaxy-system-label {
-    padding: 3px 8px 3px 7px;
+    padding: 3px 8px;
     font-size: var(--text-caption);
     line-height: 1.5;
   }
 }
-/* The empire's color dot. Decoration: the category is in the button's
-   accessible name. */
-.galaxy-system-label::before {
-  content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--empire);
-}
-/* No room for the text (labels.ts decided): just the dot, 24px wide
-   (COLLAPSED_WIDTH). The button keeps its full 44px target and its
-   accessible name, and the text comes back on hover or keyboard focus. */
-.galaxy-system[data-collapsed] .galaxy-system-label {
-  padding: 3px 8px;
-}
-.galaxy-system[data-collapsed]:not(:hover, :focus-visible) .galaxy-system-text {
+/* No room for the label (labels.ts decided): hide it, leaving just the
+   star. The button keeps its full 44px target and its accessible name, and
+   the label comes back on hover or keyboard focus. */
+.galaxy-system[data-collapsed]:not(:hover, :focus-visible) .galaxy-system-label {
   display: none;
 }
 .galaxy-system:hover .galaxy-system-label {
@@ -206,13 +206,10 @@
   background: var(--bg-elevated);
   box-shadow: 0 0 0 2px var(--empire);
 }
-/* Outside the current filter: quieter text (still 4.5:1) and a faded dot. */
+/* Outside the current filter: quieter text (still 4.5:1). */
 .galaxy-system.is-dimmed .galaxy-system-label {
   color: var(--label-secondary);
   font-weight: 500;
-}
-.galaxy-system.is-dimmed .galaxy-system-label::before {
-  opacity: 0.4;
 }
 /* The keyboard focus ring goes around the label capsule, where the eye is,
    instead of around the whole (mostly invisible) target. */
@@ -227,17 +224,18 @@
 /* ---------- Detail panel ---------- */
 
 /* A card inside the map: a column on the right on wide screens. It's
-   positioned against the map (.galaxy-map), not its list item. */
+   positioned against the map (.galaxy-map), not its list item, 12px inside
+   the frame (plus its 1px border). */
 .galaxy-panel {
   position: absolute;
   z-index: 40;
-  top: var(--space-3);
-  right: var(--space-3);
+  top: calc(var(--space-3) + 1px);
+  right: calc(var(--space-3) + 1px);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   width: min(340px, 44%);
-  max-height: calc(100% - 2 * var(--space-3));
+  max-height: calc(100% - 2 * var(--space-3) - 2px);
   overflow-y: auto;
   /* Scrolling to the panel's end doesn't carry on into the page. */
   overscroll-behavior: contain;
@@ -248,17 +246,17 @@
   box-shadow: var(--card-shadow), 0 0 0 1px var(--separator);
   color: var(--label);
 }
-/* Phones: a bottom sheet across the map's width. */
+/* Phones: a card below the map, in the page's normal flow, so the whole map
+   stays in view and the panel needs no scrolling of its own. */
 @media (max-width: 640px) {
   .galaxy-panel {
-    top: auto;
-    left: var(--space-2);
-    right: var(--space-2);
-    bottom: var(--space-2);
+    position: static;
     width: auto;
-    max-height: 60%;
-    padding: var(--space-3) var(--space-4) var(--space-3);
-    border-radius: calc(var(--radius-card) - var(--space-2));
+    max-height: none;
+    overflow: visible;
+    margin-top: var(--space-3);
+    padding: var(--space-4) var(--space-5) var(--space-4);
+    border-radius: var(--radius-card);
   }
 }
 
@@ -336,9 +334,9 @@
 
 /* ---------- Without WebGL ---------- */
 
-/* No map to show: the box shrinks to a one-line note instead of standing
+/* No map to show: the frame shrinks to a one-line note instead of standing
    empty. */
-.galaxy-map.is-unavailable {
+.galaxy-map.is-unavailable .galaxy-map-frame {
   aspect-ratio: auto;
 }
 .galaxy-map-note {

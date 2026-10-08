@@ -9,6 +9,9 @@
 // Three.js's "fat lines" (Line2) work the same way.
 // The fragment shader then fades the last pixel at each edge, which smooths
 // the jagged edges without the cost of antialiasing the whole canvas.
+// By day, ordinary lanes are white with a thin, faint darker edge (a
+// "casing", like the roads on a daytime street map): white alone would vanish
+// into the pale sky, and dark lines would look like a subway diagram.
 import { BufferAttribute, BufferGeometry, DoubleSide, Mesh, NormalBlending, ShaderMaterial, Vector3 } from "three";
 import { CATEGORY_ORDER } from "../layout";
 import type { MapNetwork } from "./network";
@@ -71,6 +74,10 @@ export function createLanes(shared: SharedUniforms, network: MapNetwork): Layer 
       border: { value: new Vector3() },
       neutralAlpha: { value: 0.3 },
       routeAlpha: { value: 0.8 },
+      borderAlpha: { value: 0.8 },
+      casing: { value: new Vector3() },
+      casingWidth: { value: 0 },
+      casingAlpha: { value: 0 },
     },
     vertexShader: /* glsl */ `
       #define MAX_SYSTEMS ${MAX_SYSTEMS}
@@ -83,8 +90,10 @@ export function createLanes(shared: SharedUniforms, network: MapNetwork): Layer 
       uniform float pixelRatio;
       uniform vec2 resolution;
       uniform float lit[MAX_SYSTEMS];
+      uniform float casingWidth;
       varying float vOffset;
       varying float vHalf;
+      varying float vCasing;
       varying float vAlong;
       varying float vLength;
       varying float vKind;
@@ -98,7 +107,9 @@ export function createLanes(shared: SharedUniforms, network: MapNetwork): Layer 
         vec2 direction = normalize(b.xy / b.w * halfScreen - a.xy / a.w * halfScreen);
         vec2 normal = vec2(-direction.y, direction.x); // 90 degrees to the lane
         float width = (kind > 0.5 ? 1.6 : 1.0) * pixelRatio; // in device pixels
-        float halfWidth = width * 0.5 + 1.0; // +1 pixel to fade out smoothly
+        // Empire routes (kind 1) have no casing.
+        vCasing = abs(kind - 1.0) < 0.5 ? 0.0 : casingWidth * pixelRatio;
+        float halfWidth = width * 0.5 + vCasing + 1.0; // +1 pixel to fade out smoothly
         vec4 p = corner.x < 0.5 ? a : b;
         // Clip space is divided by w later, so the pixel offset is scaled by w.
         p.xy += normal * corner.y * halfWidth / halfScreen * p.w;
@@ -120,16 +131,22 @@ export function createLanes(shared: SharedUniforms, network: MapNetwork): Layer 
       uniform vec3 border;
       uniform float neutralAlpha;
       uniform float routeAlpha;
+      uniform float borderAlpha;
+      uniform vec3 casing;
+      uniform float casingAlpha;
       varying float vOffset;
       varying float vHalf;
+      varying float vCasing;
       varying float vAlong;
       varying float vLength;
       varying float vKind;
       varying float vEmpire;
       varying float vLit;
       void main() {
-        // Coverage: 1 inside the lane, falling to 0 over the last pixel.
+        // Coverage: 1 inside the lane, falling to 0 over the last pixel;
+        // the same for the lane plus its casing.
         float coverage = clamp(vHalf + 0.5 - abs(vOffset), 0.0, 1.0);
+        float casingCoverage = clamp(vHalf + vCasing + 0.5 - abs(vOffset), 0.0, 1.0) * step(0.01, vCasing);
         vec3 color = neutral;
         float alpha = neutralAlpha;
         if (vKind > 0.5) {
@@ -138,11 +155,17 @@ export function createLanes(shared: SharedUniforms, network: MapNetwork): Layer 
           // fract() repeats it every 2.5 units; time moves it forward. While
           // paused, time stops and the pulses hold still.
           float pulse = smoothstep(0.8, 1.0, fract(vAlong * 0.4 - time * 0.3));
-          alpha = routeAlpha * (0.75 + 0.25 * pulse) * mix(0.2, 1.0, vLit);
+          alpha = (vKind < 1.5 ? routeAlpha : borderAlpha) * (0.75 + 0.25 * pulse) * mix(0.2, 1.0, vLit);
         }
         // Fade in from each end, so lanes don't spike into the stars' cores.
         float fade = smoothstep(0.05, 0.35, vAlong) * smoothstep(0.05, 0.35, vLength - vAlong);
-        gl_FragColor = vec4(color, alpha * coverage * fade);
+        // The lane painted over its casing (the "over" operator: the casing
+        // shows only where the lane doesn't cover it).
+        float top = alpha * coverage;
+        float under = casingAlpha * casingCoverage * (vKind > 0.5 ? vLit : 1.0) * (1.0 - top);
+        float total = top + under;
+        vec3 mixed = (color * top + casing * under) / max(total, 1e-4);
+        gl_FragColor = vec4(mixed, total * fade);
       }
     `,
     transparent: true,
@@ -163,12 +186,18 @@ export function createLanes(shared: SharedUniforms, network: MapNetwork): Layer 
     setPalette(palette, light) {
       const u = material.uniforms;
       (u.empires!.value as Vector3[]).forEach((v, e) => v.copy(srgb(palette.categories[CATEGORY_ORDER[e]!] ?? "#888")));
-      // Ordinary lanes in the galaxy's arm color (darkened by day), border
-      // routes between empires in white by night, deep blue-gray by day.
-      u.neutral!.value.copy(srgb(palette.arm).multiplyScalar(light ? 0.5 : 1));
-      u.border!.value.copy(light ? srgb(palette.arm).multiplyScalar(0.36) : srgb(palette.star));
-      u.neutralAlpha!.value = light ? 0.3 : 0.26;
-      u.routeAlpha!.value = light ? 0.85 : 0.75;
+      // By night: ordinary lanes in the galaxy's arm color, border routes
+      // between empires in white, empire routes in their empire's color.
+      // By day: ordinary lanes and border routes white with a faint casing
+      // in the arm color; empire routes in their color, a little see-through.
+      u.neutral!.value.copy(light ? new Vector3(1, 1, 1) : srgb(palette.arm));
+      u.border!.value.copy(light ? new Vector3(1, 1, 1) : srgb(palette.star));
+      u.neutralAlpha!.value = light ? 0.8 : 0.26;
+      u.routeAlpha!.value = light ? 0.6 : 0.75;
+      u.borderAlpha!.value = light ? 1 : 0.75;
+      u.casing!.value.copy(srgb(palette.arm));
+      u.casingWidth!.value = light ? 0.75 : 0;
+      u.casingAlpha!.value = light ? 0.3 : 0;
     },
     dispose() {
       geometry.dispose();

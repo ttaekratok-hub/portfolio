@@ -14,8 +14,13 @@
 //
 // How it moves:
 //   - Auto-rotation: the camera slowly circles the galaxy while animations
-//     run. It eases to a stop while the pointer is over the map or a system
-//     has keyboard focus, so targets hold still while you aim.
+//     run. It eases to a stop while the pointer is over the map, a system
+//     has keyboard focus or a system is selected, so targets hold still
+//     while you aim and the map stays put while you read its details.
+//   - Frame budget: the rotation is so slow that drawing it 60 times a
+//     second buys nothing, so frames where only the ambient motion changes
+//     (rotation, twinkling) are drawn at most 30 times a second. Glides,
+//     fades and drags get every frame. With nothing moving, no frames at all.
 //   - focus(id): the camera glides to the system (an eased transition over
 //     about a second; instant with Reduce Motion) and zooms in a little.
 //     focus(null) glides back to the overview.
@@ -28,7 +33,9 @@
 // a ray from a screen point into the scene to see what it hits). Projecting
 // the systems every time the camera moves and putting HTML buttons there
 // makes hit-testing the browser's job, and keyboard and screen-reader
-// support come with real buttons for free.
+// support come with real buttons for free. The buttons are only told when a
+// system has moved by half a pixel or more: moving HTML is costlier than
+// drawing, and a sub-pixel move isn't visible anyway.
 import { PerspectiveCamera, Scene, Vector3 } from "three";
 import type { Filter } from "../data/projects";
 import { createEngine, lowPowerDevice } from "./engine";
@@ -36,20 +43,33 @@ import { createDust, createHaze, createSky } from "./map/backdrop";
 import { applyView, easeInOutCubic, fitOverview, mixViews, type View } from "./map/camera";
 import { matchesFilter } from "./map/labels";
 import { createLanes } from "./map/lanes";
-import { buildNetwork } from "./map/network";
+import { buildNetwork, claimTerritory } from "./map/network";
 import { createSharedUniforms, MAX_SYSTEMS, type Layer } from "./map/shared";
-import { createSelectionRing, createStars } from "./map/stars";
-import { createTerritory } from "./map/territory";
+import { createSelectionRing, createStars, RING_RADIUS } from "./map/stars";
+import { createTerritory, territoryExtent } from "./map/territory";
 import { readPalette, type SpacePalette } from "./palette";
 import type { GalaxyMapScene, MapCallbacks, MapSystem, SceneOptions, ScreenPosition } from "./types";
 
 export interface MapScreenPosition extends ScreenPosition {
   /** 0 for the system nearest the camera, 1 for the farthest. */
   depth: number;
+  /**
+   * For the selected system: how far its selection ring reaches from the
+   * star's center on screen, in CSS pixels, sideways (x) and up or down (y;
+   * less, as the ring lies tilted on the plane). The label goes outside it.
+   * 0 for the others.
+   */
+  ringX: number;
+  ringY: number;
 }
 
 export interface GalaxyMapCallbacks extends MapCallbacks {
-  onScreenPositions(positions: MapScreenPosition[]): void;
+  /**
+   * `settled` is true on the first report after the camera came to rest (a
+   * glide ended, or the map was resized): a good moment to lay the labels
+   * out afresh instead of keeping the sides they had while moving.
+   */
+  onScreenPositions(positions: MapScreenPosition[], settled?: boolean): void;
   /**
    * Where a selected system should appear, as fractions of the canvas
    * (0.5, 0.5 is the middle): the middle of whatever the detail panel leaves
@@ -66,18 +86,26 @@ const SPIN_SPEED = (Math.PI * 2) / 300;
 const GLIDE = 1.1;
 /** Seconds for systems and territories to fade with the filter. */
 const FADE = 0.35;
+/** How close the camera gets to a selected system, relative to the overview. */
+const ZOOM = 0.6;
+/** Frames with only ambient motion: at most this many per second. */
+const AMBIENT_FPS = 30;
+/** Report positions to the buttons once a system has moved this far, in CSS pixels. */
+const MOVE_THRESHOLD = 0.5;
 /**
- * How close the camera gets to a selected system, relative to the overview.
- * Closer on portrait maps (phones), where the detail panel leaves only a
- * strip of the map: fewer neighbors crowd into it.
+ * Where the camera starts, in radians around the galaxy: the view from the
+ * Embedded and Tech Art side, with Cloud & DevOps' long arm of three systems
+ * reaching away from the camera, so the near rim of the map stays calm.
  */
-const zoomFor = (width: number, height: number) => (width < height ? 0.45 : 0.6);
+const START_AZIMUTH = 4.1;
 
 export function createGalaxyMap(
   canvas: HTMLCanvasElement,
   systems: MapSystem[],
   callbacks: GalaxyMapCallbacks,
   initial: SceneOptions,
+  /** The element around the map (canvas, buttons, panel): hovering or focusing it stops the rotation. */
+  container: HTMLElement = canvas.parentElement ?? canvas,
 ): GalaxyMapScene {
   if (systems.length > MAX_SYSTEMS) throw new Error(`The map shows at most ${MAX_SYSTEMS} systems`);
   const lowPower = lowPowerDevice();
@@ -86,25 +114,33 @@ export function createGalaxyMap(
   // little, like a long lens: the far side of the map doesn't shrink much.
   const camera = new PerspectiveCamera(38, 1, 0.1, 400);
   const shared = createSharedUniforms();
-  const container = canvas.parentElement ?? canvas;
 
   let options = initial;
   let size = { width: 1, height: 1 };
   let overview: View = { x: 0, z: 0, distance: 30, elevation: 1, focusX: 0.5, focusY: 0.5 };
   let view = overview; // what the camera shows now
   let glide: { from: View; progress: number } | null = null; // a camera transition under way
-  let azimuth = 0.35; // radians around the galaxy; this start frames the map nicely
+  let azimuth = START_AZIMUTH; // radians around the galaxy
   let spin = SPIN_SPEED; // current rotation speed, eased toward 0 or SPIN_SPEED
   let selected = -1; // index into systems, -1 for none
   let hovering = false;
   let keyboardFocus = false;
   let drag: { x: number } | null = null;
-  let positionsDirty = true; // the systems moved on screen: tell the buttons
+  let positionsDirty = true; // the systems may have moved on screen: check, and tell the buttons
+  let settled = true; // the camera just came to rest: the next report says so
+  let ambientTime = 0; // seconds of ambient-only motion not drawn yet (frame budget)
+  let redraw = true; // something changed besides the ambient motion: draw the next frame for sure
   let started = false;
   const lit = shared.lit.value; // per system, the current fade (1 lit, 0 dimmed)
   const litGoal = systems.map(() => 1);
   let ring = { appear: 0, goal: 0 };
   let palette: SpacePalette = readPalette();
+
+  // The hyperlane network and which stars each empire holds (network.ts).
+  // Fewer unclaimed stars on phones and low-power machines.
+  const network = buildNetwork(systems, { stars: lowPower ? 40 : 64, radius: RADIUS });
+  const claims = claimTerritory(network, systems.length, { radius: RADIUS });
+  const extent = territoryExtent(claims, network.nodes);
 
   // The view the camera should end up in: the overview, or zoomed in on the
   // selected system, placed where the detail panel leaves room.
@@ -116,7 +152,7 @@ export function createGalaxyMap(
       ...overview,
       x: system.position[0],
       z: system.position[2],
-      distance: overview.distance * zoomFor(size.width, size.height),
+      distance: overview.distance * ZOOM,
       focusX: point.x,
       focusY: point.y,
     };
@@ -132,16 +168,29 @@ export function createGalaxyMap(
         // the real number of device pixels per CSS pixel.
         shared.pixelRatio.value = canvas.width / width;
         shared.resolution.value.set(canvas.width, canvas.height);
-        // Frame the systems (out to 85% of the radius) and their labels; the
+        // Frame everything that matters, whichever way the map has turned:
+        // the territories, which reach past the outermost systems. The
         // galaxy's faint rim may run off the edges.
-        overview = fitOverview(camera, RADIUS * 0.94, width, height);
+        overview = fitOverview(camera, extent, width, height, 0.95);
         shared.referenceDepth.value = overview.distance;
         // Re-aim at once: a resize shouldn't animate.
         if (!glide) view = goalView();
         positionsDirty = true;
+        settled = true;
       },
       onFrame(delta) {
         if (!started) return;
+        // The frame budget: while only ambient motion is going on, save up
+        // the time and skip drawing until 1/30 s has passed. The canvas
+        // keeps showing the last frame meanwhile. (A one-off frame, delta 0,
+        // and any frame after a change always draw.)
+        if (delta > 0 && !redraw && autonomous() && !glide && !drag && !fading()) {
+          ambientTime += delta;
+          if (ambientTime < 1 / AMBIENT_FPS - 0.004) return; // 4 ms of slack for uneven frame timing
+          delta = Math.min(0.1, ambientTime);
+        }
+        ambientTime = 0;
+        redraw = false;
         step(delta);
         applyView(camera, view, azimuth, size.width, size.height);
         engine.renderer.render(scene, camera);
@@ -158,16 +207,15 @@ export function createGalaxyMap(
   );
 
   // ---------- Layers ----------
-  const network = buildNetwork(systems, { stars: lowPower ? 40 : 64, radius: RADIUS });
   const galaxyShape = { radius: RADIUS * 1.1, arms: 4, spin: 3.2 };
   const selectionRing = createSelectionRing(shared);
   const layers: Layer[] = [
-    createSky(),
+    createSky(shared),
     createHaze(shared, galaxyShape),
     // Point counts: about a quarter of the hero galaxy's, fewer again on
     // phones and low-power machines. The map is small; more would only blur.
     createDust(shared, { ...galaxyShape, count: lowPower ? 7000 : 16000, seed: 2026 }),
-    createTerritory(shared, systems, RADIUS),
+    createTerritory(shared, systems, claims, network.nodes, RADIUS),
     createLanes(shared, network),
     selectionRing,
     createStars(shared, network, systems, engine.renderer),
@@ -192,7 +240,7 @@ export function createGalaxyMap(
       // Exponential smoothing: close a fixed share of the gap to the wanted
       // speed each second, whatever the frame rate. The rotation eases out
       // and back in instead of stopping dead.
-      const wanted = hovering || keyboardFocus || drag ? 0 : SPIN_SPEED;
+      const wanted = hovering || keyboardFocus || drag || selected >= 0 ? 0 : SPIN_SPEED;
       spin += (wanted - spin) * (1 - Math.exp(-delta * 3));
       if (Math.abs(spin) > 1e-4) {
         azimuth += spin * delta;
@@ -202,7 +250,10 @@ export function createGalaxyMap(
     if (glide) {
       glide.progress = Math.min(1, glide.progress + delta / GLIDE);
       view = mixViews(glide.from, goalView(), easeInOutCubic(glide.progress));
-      if (glide.progress >= 1) glide = null;
+      if (glide.progress >= 1) {
+        glide = null;
+        settled = true;
+      }
       positionsDirty = true;
     }
     for (let i = 0; i < systems.length; i++) lit[i] = approach(lit[i]!, litGoal[i]!, delta / FADE);
@@ -212,6 +263,7 @@ export function createGalaxyMap(
 
   /** Jump every transition to its end (Reduce Motion). */
   function finishTransitions() {
+    if (glide) settled = true;
     glide = null;
     view = goalView();
     for (let i = 0; i < systems.length; i++) lit[i] = litGoal[i]!;
@@ -222,31 +274,75 @@ export function createGalaxyMap(
 
   /** Start or stop the frame loop to match what's going on, and draw a frame. */
   function sync() {
+    redraw = true;
     if (options.reduceMotion) finishTransitions();
     engine.setAnimating(needsFrames());
     engine.requestRender();
   }
 
   // ---------- Where the systems are on screen ----------
+  // Allocated once and refilled: this runs on every frame the camera moves.
+  const positions: MapScreenPosition[] = systems.map((s) => ({ id: s.id, x: 0, y: 0, visible: false, depth: 0, ringX: 0, ringY: 0 }));
+  // x, y, ringX, ringY as last told to the buttons; NaN (never told) never
+  // compares close, so the first report always goes out.
+  const reported = new Float32Array(systems.length * 4).fill(NaN);
   const point = new Vector3();
+  const edge = new Vector3();
+  const depths = new Float32Array(systems.length);
+  /** A scene point's position on the canvas, in CSS pixels (one reused object: no garbage per frame). */
+  const screen = { x: 0, y: 0, z: 0 };
+  const toScreen = (v: Vector3) => {
+    v.project(camera);
+    screen.x = ((v.x + 1) / 2) * size.width;
+    screen.y = ((1 - v.y) / 2) * size.height;
+    screen.z = v.z;
+    return screen;
+  };
+  const close = (a: number, b: number) => Math.abs(a - b) < MOVE_THRESHOLD; // false for NaN
   function report() {
-    const depths = systems.map((s) => point.set(...s.position).applyMatrix4(camera.matrixWorldInverse).z * -1);
-    const near = Math.min(...depths);
-    const far = Math.max(...depths);
-    callbacks.onScreenPositions(
-      systems.map((s, i) => {
-        point.set(...s.position).project(camera);
-        const x = ((point.x + 1) / 2) * size.width;
-        const y = ((1 - point.y) / 2) * size.height;
-        return {
-          id: s.id,
-          x,
-          y,
-          visible: point.z < 1 && x >= 0 && x <= size.width && y >= 0 && y <= size.height,
-          depth: far > near ? (depths[i]! - near) / (far - near) : 0,
-        };
-      }),
-    );
+    let near = Infinity;
+    let far = -Infinity;
+    systems.forEach((s, i) => {
+      depths[i] = -point.set(...s.position).applyMatrix4(camera.matrixWorldInverse).z;
+      near = Math.min(near, depths[i]!);
+      far = Math.max(far, depths[i]!);
+    });
+    let moved = settled;
+    systems.forEach((s, i) => {
+      const p = positions[i]!;
+      const center = toScreen(point.set(...s.position));
+      p.x = center.x;
+      p.y = center.y;
+      p.visible = center.z < 1 && p.x >= 0 && p.x <= size.width && p.y >= 0 && p.y <= size.height;
+      p.depth = far > near ? (depths[i]! - near) / (far - near) : 0;
+      // The selection ring, once it shows: project a point on its rim
+      // sideways (along the camera's right, the first column of its matrix)
+      // and one toward the camera along the plane, and measure on screen.
+      p.ringX = 0;
+      p.ringY = 0;
+      if (i === selected && ring.goal > 0) {
+        const r = RING_RADIUS;
+        const right = edge.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+        const [x, , z] = s.position;
+        const [rx, rz] = [right.x, right.z];
+        const sideways = toScreen(point.set(x + rx * r, 0, z + rz * r));
+        p.ringX = Math.hypot(sideways.x - p.x, sideways.y - p.y);
+        p.ringY = Math.abs(toScreen(point.set(x - rz * r, 0, z + rx * r)).y - p.y);
+      }
+      const k = i * 4;
+      const same =
+        close(p.x, reported[k]!) && close(p.y, reported[k + 1]!) && close(p.ringX, reported[k + 2]!) && close(p.ringY, reported[k + 3]!);
+      if (!same) moved = true;
+    });
+    if (!moved) return;
+    positions.forEach((p, i) => {
+      reported[i * 4] = p.x;
+      reported[i * 4 + 1] = p.y;
+      reported[i * 4 + 2] = p.ringX;
+      reported[i * 4 + 3] = p.ringY;
+    });
+    callbacks.onScreenPositions(positions, settled);
+    settled = false;
   }
 
   // ---------- Colors ----------
@@ -260,8 +356,8 @@ export function createGalaxyMap(
   }
 
   // ---------- Pointer and focus ----------
-  // Listeners go on the map's container (the canvas's parent), which also
-  // holds the system buttons, so hovering a label counts as hovering the map.
+  // Listeners go on the map's container, which also holds the system
+  // buttons, so hovering a label counts as hovering the map.
   const onPointerEnter = (event: PointerEvent) => {
     if (event.pointerType !== "touch") hovering = true;
   };
@@ -290,6 +386,7 @@ export function createGalaxyMap(
     azimuth -= (event.clientX - drag.x) * 0.005; // radians per pixel: a full turn per ~1250px
     drag.x = event.clientX;
     positionsDirty = true;
+    redraw = true;
     engine.requestRender();
   };
   const onPointerUp = (event: PointerEvent) => {
@@ -315,6 +412,13 @@ export function createGalaxyMap(
   }
   applyPalette();
   apply();
+  // DEBUG-TEMP
+  (globalThis as unknown as Record<string, unknown>).__mapSetAzimuth = (a: number) => {
+    azimuth = a;
+    positionsDirty = true;
+    redraw = true;
+    engine.requestRender();
+  };
 
   return {
     update(next) {

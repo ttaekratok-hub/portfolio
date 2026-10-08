@@ -14,6 +14,7 @@ export const PROJECT_BY_ID: ReadonlyMap<string, Project> = new Map(PROJECTS.map(
  */
 const SHORT_LABELS: Record<string, string> = {
   "production-linux-kubernetes-platform": "Kubernetes Platform",
+  "c-object-oriented-programs": "C++ Object-Oriented",
   "mikrotik-ospf-network-lab": "OSPF Network Lab",
   "public-issue-reporting-app": "Issue-Reporting App",
   "stm32-real-time-line-following-robot": "Line-Following Robot",
@@ -47,15 +48,18 @@ export function matchesFilter(id: string, filter: Filter): boolean {
 //     best possible layout, but fast, stable and good enough for a few dozen.
 //   - Hysteresis: keep the current spot as long as it still fits. Without
 //     it, a label near a tie would flip back and forth every frame.
-//   - Collapse: a label with no free spot shrinks to its color dot (its
-//     button stays, full size; the text shows again on hover or focus).
-// The gaps here match the paddings in styles/map.css.
+//   - Collapse: a label with no free spot hides its text, leaving just the
+//     star (its button stays, full size, with its name; the text shows again
+//     on hover or keyboard focus).
+// The gaps here match the paddings in styles/map.css; a label can ask for a
+// wider gap (the selected system's, to clear its selection ring), which
+// GalaxyMap.tsx passes on to the CSS.
 
 export type Side = "right" | "left" | "above" | "below";
 
 export interface Placement {
   side: Side;
-  /** No room for the text: show only the label's color dot. */
+  /** No room for the text: hide it (until hover or focus). */
   collapsed: boolean;
 }
 
@@ -67,6 +71,9 @@ export interface LabelInput {
   /** The label's measured size, in CSS pixels. */
   width: number;
   height: number;
+  /** A wider gap between star and label than usual, beside (x) and above or below (y). */
+  gapX?: number;
+  gapY?: number;
 }
 
 export interface Rect {
@@ -80,21 +87,22 @@ export interface Rect {
 export const SIDE_GAP = 12;
 /** The same, above or below the star. */
 export const STACK_GAP = 10;
-/** A collapsed label's width: just the color dot and its padding. */
-export const COLLAPSED_WIDTH = 24;
 
 const SIDES: Side[] = ["right", "left", "above", "below"];
 
-function labelRect(x: number, y: number, width: number, height: number, side: Side): Rect {
+function labelRect(item: LabelInput, side: Side): Rect {
+  const { x, y, width, height } = item;
+  const gapX = Math.max(SIDE_GAP, item.gapX ?? 0);
+  const gapY = Math.max(STACK_GAP, item.gapY ?? 0);
   switch (side) {
     case "right":
-      return { left: x + SIDE_GAP, right: x + SIDE_GAP + width, top: y - height / 2, bottom: y + height / 2 };
+      return { left: x + gapX, right: x + gapX + width, top: y - height / 2, bottom: y + height / 2 };
     case "left":
-      return { left: x - SIDE_GAP - width, right: x - SIDE_GAP, top: y - height / 2, bottom: y + height / 2 };
+      return { left: x - gapX - width, right: x - gapX, top: y - height / 2, bottom: y + height / 2 };
     case "above":
-      return { left: x - width / 2, right: x + width / 2, top: y - STACK_GAP - height, bottom: y - STACK_GAP };
+      return { left: x - width / 2, right: x + width / 2, top: y - gapY - height, bottom: y - gapY };
     case "below":
-      return { left: x - width / 2, right: x + width / 2, top: y + STACK_GAP, bottom: y + STACK_GAP + height };
+      return { left: x - width / 2, right: x + width / 2, top: y + gapY, bottom: y + gapY + height };
   }
 }
 
@@ -123,15 +131,18 @@ export function placeLabels(
   const result = new Map<string, Placement>();
 
   for (const [i, item] of items.entries()) {
-    // The cost of a spot: how much of the label would be cut off by the
-    // map's edge or covered by labels and stars already placed, in square
-    // pixels. 0 is a perfect fit.
+    // The cost of a spot: how much of the label would stick out past the
+    // map's edge or cover labels and stars already placed, in square
+    // pixels. 0 is a perfect fit. Sticking out counts four times: the map
+    // doesn't clip its labels (a focused one must never be cut off), so one
+    // past the edge would hang over the page.
     const cost = (rect: Rect) => {
       const w = rect.right - rect.left;
       const h = rect.bottom - rect.top;
       let total =
-        (Math.max(0, margin - rect.left) + Math.max(0, rect.right - (bounds.width - margin))) * h +
-        (Math.max(0, margin - rect.top) + Math.max(0, rect.bottom - (bounds.height - margin))) * w;
+        ((Math.max(0, margin - rect.left) + Math.max(0, rect.right - (bounds.width - margin))) * h +
+          (Math.max(0, margin - rect.top) + Math.max(0, rect.bottom - (bounds.height - margin))) * w) *
+        4;
       for (const other of placed) total += overlap(rect, other);
       // Covering an obstacle counts four times: better to collapse a label
       // than to tuck it under the panel.
@@ -145,27 +156,21 @@ export function placeLabels(
     const before = previous.get(item.id);
     const facing: Side = item.x > bounds.width * 0.62 ? "left" : "right";
     const order = [...new Set<Side>([before?.side ?? facing, facing, ...SIDES])];
-    let best = { side: order[0]!, cost: Infinity, rect: labelRect(item.x, item.y, item.width, item.height, order[0]!) };
+    let best = { side: order[0]!, cost: Infinity, rect: labelRect(item, order[0]!) };
     for (const side of order) {
-      const rect = labelRect(item.x, item.y, item.width, item.height, side);
+      const rect = labelRect(item, side);
       const c = cost(rect);
       if (c < best.cost) best = { side, cost: c, rect };
       if (c === 0) break;
     }
-    // Too crowded: collapse to the dot. An open label tolerates a little
-    // overlap before collapsing, and a collapsed one opens only when it fits
-    // cleanly, so a label at the threshold doesn't blink.
+    // Too crowded: collapse (hide the text; the star stays, and it's
+    // already an obstacle). An open label tolerates a little overlap before
+    // collapsing, and a collapsed one opens only when it fits cleanly, so a
+    // label at the threshold doesn't blink. It keeps its best side, where
+    // the text appears on hover or focus.
     const tolerance = item.width * item.height * (!before ? 0.05 : before.collapsed ? 0.01 : 0.12);
     if (best.cost > tolerance) {
-      let dot = { side: best.side, cost: Infinity, rect: best.rect };
-      for (const side of order) {
-        const rect = labelRect(item.x, item.y, COLLAPSED_WIDTH, item.height, side);
-        const c = cost(rect);
-        if (c < dot.cost) dot = { side, cost: c, rect };
-        if (c === 0) break;
-      }
-      result.set(item.id, { side: dot.side, collapsed: true });
-      placed.push(dot.rect);
+      result.set(item.id, { side: best.side, collapsed: true });
     } else {
       result.set(item.id, { side: best.side, collapsed: false });
       placed.push(best.rect);

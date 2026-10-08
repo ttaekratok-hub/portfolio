@@ -58,7 +58,7 @@ export function applyView(camera: PerspectiveCamera, view: View, azimuth: number
 
 /**
  * The overview: the distance at which a disc of `radius` around the center
- * fills about 90% of the canvas, and the focusY that centers it vertically
+ * fills `fill` of the canvas (0.9 = 90%), and the focusY that centers it vertically
  * (the near half of a tilted disc looks bigger than the far half, so the
  * disc's middle isn't the picture's middle).
  *
@@ -67,7 +67,7 @@ export function applyView(camera: PerspectiveCamera, view: View, azimuth: number
  * distance where the rim just fits ("binary search"). 24 halvings pin it
  * down far below a pixel.
  */
-export function fitOverview(camera: PerspectiveCamera, radius: number, width: number, height: number): View {
+export function fitOverview(camera: PerspectiveCamera, radius: number, width: number, height: number, fill = 0.9): View {
   const rim = Array.from({ length: 48 }, (_, i) => {
     const a = (i / 48) * Math.PI * 2;
     return new Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius);
@@ -93,7 +93,7 @@ export function fitOverview(camera: PerspectiveCamera, radius: number, width: nu
   let far = radius * 20;
   for (let i = 0; i < 24; i++) {
     const mid = (near + far) / 2;
-    if (extent(mid).size > 0.9) near = mid;
+    if (extent(mid).size > fill) near = mid;
     else far = mid;
   }
   // Normalized y points up and runs -1 to 1; canvas fractions point down

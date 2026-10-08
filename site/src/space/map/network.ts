@@ -22,6 +22,12 @@
 //      Dijkstra's algorithm, so routes follow the hyperlanes instead of
 //      cutting across the map.
 //      Learn more: https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm
+//   4. Claims (claimTerritory, below). Which stars each empire holds: its
+//      own project systems, the stars along its routes, and the unclaimed
+//      stars a lane or two away from its systems. territory.ts draws each
+//      empire's region around the stars it holds, so the regions follow the
+//      hyperlanes and meet their neighbors at shared borders, as on a
+//      strategy map, instead of floating as one circle per project.
 import type { Category } from "../../data/projects";
 import { generateGalaxy } from "../galaxy";
 import { CATEGORY_ORDER } from "../layout";
@@ -155,4 +161,92 @@ export function buildNetwork(systems: MapSystem[], { stars, radius = 10, seed = 
   });
 
   return { nodes, lanes };
+}
+
+// ---------- Claims ----------
+
+export interface Claim {
+  /** The claimed star (index into nodes). */
+  node: number;
+  /**
+   * The project system (index into systems) the claim belongs to: its empire
+   * owns the star, and the star dims with it when the filter hides it.
+   */
+  system: number;
+  /** How strongly it's held: 1 for a project system, less for the stars around it. */
+  weight: number;
+}
+
+/** Claim strengths: a project, a star on one of its empire's routes, a star 1 or 2 lanes away. */
+export const CLAIM_WEIGHT = { system: 1, route: 0.8, near: 0.62, far: 0.48 } as const;
+
+/**
+ * Which stars each empire holds. Every star goes to the project system
+ * nearest to it *along the lanes* (not as the crow flies), found with a
+ * "multi-source" Dijkstra: the search starts from all project systems at
+ * once, so each star is reached first from its nearest one. Stars more than
+ * two lanes from any project, or out near the rim, stay unclaimed. Stars on
+ * an empire's own routes always belong to that empire, which joins its
+ * systems into one region. Strongest claims first.
+ */
+export function claimTerritory(
+  network: MapNetwork,
+  systemCount: number,
+  { radius = 10, maxHops = 2 }: { radius?: number; maxHops?: number } = {},
+): Claim[] {
+  const { nodes, lanes } = network;
+  const n = nodes.length;
+  const neighbors: Array<Array<{ to: number; length: number }>> = nodes.map(() => []);
+  for (const lane of lanes) {
+    const length = dist(nodes[lane.a]!, nodes[lane.b]!);
+    neighbors[lane.a]!.push({ to: lane.b, length });
+    neighbors[lane.b]!.push({ to: lane.a, length });
+  }
+  const cost = new Array<number>(n).fill(Infinity);
+  const hops = new Array<number>(n).fill(Infinity);
+  const source = new Array<number>(n).fill(-1);
+  const done = new Array<boolean>(n).fill(false);
+  for (let i = 0; i < systemCount; i++) {
+    cost[i] = 0;
+    hops[i] = 0;
+    source[i] = i;
+  }
+  for (;;) {
+    let current = -1;
+    for (let i = 0; i < n; i++) if (!done[i] && cost[i]! < Infinity && (current < 0 || cost[i]! < cost[current]!)) current = i;
+    if (current < 0) break;
+    done[current] = true;
+    for (const { to, length } of neighbors[current]!) {
+      if (cost[current]! + length < cost[to]!) {
+        cost[to] = cost[current]! + length;
+        hops[to] = hops[current]! + 1;
+        source[to] = source[current]!;
+      }
+    }
+  }
+
+  const claims: Claim[] = [];
+  const claimed = new Set<number>();
+  for (let i = 0; i < systemCount; i++) {
+    claims.push({ node: i, system: i, weight: CLAIM_WEIGHT.system });
+    claimed.add(i);
+  }
+  // Stars on an empire's routes, held by the nearer of the route's two ends.
+  for (const lane of lanes) {
+    if (lane.kind !== "empire" || !lane.ends) continue;
+    for (const node of [lane.a, lane.b]) {
+      if (claimed.has(node)) continue;
+      const [p, q] = lane.ends;
+      const system = dist(nodes[node]!, nodes[p]!) <= dist(nodes[node]!, nodes[q]!) ? p : q;
+      claims.push({ node, system, weight: CLAIM_WEIGHT.route });
+      claimed.add(node);
+    }
+  }
+  // The stars around each project, within reach and inside the rim.
+  for (let node = systemCount; node < n; node++) {
+    if (claimed.has(node) || source[node]! < 0 || hops[node]! > maxHops) continue;
+    if (Math.hypot(nodes[node]!.x, nodes[node]!.z) > radius * 0.86) continue;
+    claims.push({ node, system: source[node]!, weight: hops[node] === 1 ? CLAIM_WEIGHT.near : CLAIM_WEIGHT.far });
+  }
+  return claims.sort((a, b) => b.weight - a.weight);
 }
