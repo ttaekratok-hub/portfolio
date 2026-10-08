@@ -156,11 +156,11 @@ describe("project filters", () => {
     // mouseup, click), not just one "click" event. It's async, so the test
     // awaits it.
     await userEvent.click(within(filters).getByRole("button", { name: "Networking" }));
-    expect(titles()).toEqual(["MikroTik OSPF Network Lab"]);
+    expect(titles()).toEqual(["MikroTik OSPF Network Lab", "Client/Server Socket Programs"]);
     // aria-pressed is how screen readers learn which filter is on.
     expect(within(filters).getByRole("button", { name: "Networking" })).toHaveAttribute("aria-pressed", "true");
     // The visually hidden live region that announces the result.
-    expect(screen.getByText("Showing 1 Networking project")).toBeInTheDocument();
+    expect(screen.getByText("Showing 2 Networking projects")).toBeInTheDocument();
     await userEvent.click(within(filters).getByRole("button", { name: "All" }));
     expect(screen.getByText(`Showing all ${PROJECTS.length} projects`)).toBeInTheDocument();
   });

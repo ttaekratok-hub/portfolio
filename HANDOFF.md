@@ -41,7 +41,9 @@ Reduce Motion, with no console errors. Next: open the PR into `main`.
   copy: the Pi has no clone, and its write deploy key was removed (2026-10-08).
 - `site/`: React + TypeScript (Vite), pre-rendered to static HTML at build
   time (scripts/prerender.mjs) so crawlers/web filters see real content.
-  Content lives in `site/src/data/` (profile.ts, projects.ts). Apple HIG design:
+  Content lives in `site/src/data/` (profile.ts, projects.ts).
+  The résumé PDF (`site/public/resume.pdf`) is printed from `resume/resume.html`
+  with `npm run resume` (one page enforced); commit both after editing. Apple HIG design:
   system colors (tokens.css, contrast-tested), SF via system font / Inter
   fallback, Liquid Glass only on floating controls (nav, pause button).
   Space theme with Three.js (site/src/space/): background scene and a galaxy
