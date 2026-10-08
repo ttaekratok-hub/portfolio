@@ -153,7 +153,7 @@ export const PROJECTS: Project[] = [
     title: "Space Scene & Galaxy Map",
     year: "2026",
     summary:
-      "The space behind this site: a procedural spiral galaxy, starfield and nebula drawn with WebGL, a daytime sky in light mode, and an interactive galaxy map of these projects.",
+      "The space behind this site: a procedural spiral galaxy, starfield and nebula drawn with WebGL, and an interactive galaxy map of these projects.",
     categories: ["techart"],
     tech: ["Three.js", "WebGL", "GLSL shaders", "TypeScript"],
     links: [{ label: "Code", href: "https://github.com/ttaekratok-hub/portfolio/tree/main/site/src/space" }],

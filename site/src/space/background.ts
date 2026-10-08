@@ -2,15 +2,13 @@
 // components/SpaceBackground.tsx (which loads this file, and Three.js with
 // it, only after the page is up).
 //
-// Dark appearance, deep space like a strategy game's galaxy map:
+// Deep space, like a strategy game's galaxy map:
 //   - faint nebula clouds over a near-black sky      (background/sky.ts)
 //   - a big spiral galaxy rising below the hero text (background/galaxyLayers.ts)
 //   - a starfield of three depth layers, page-long   (background/starfield.ts)
-// Light appearance, a soft daytime sky: a blue gradient with drifting white
-// clouds and the galaxy as a pale ghost, like the Moon by day.
 //
 // Two passes per frame:
-//   1. The soft layers (sky, nebula or clouds, the galaxy's glow) are drawn
+//   1. The soft layers (sky and nebula, the galaxy's glow) are drawn
 //      into a small offscreen picture, a "render target", a third of the
 //      window's width and height. They're all blurry by nature, so nobody
 //      can tell, and it's 9x fewer pixels to compute (more on high-density
@@ -43,14 +41,14 @@
 // near the top, the hero's frame (galaxy below the text, as on arrival);
 // further down, a calm frame without the galaxy. Reduce Motion only ever uses
 // those two. See chooseStillFrame().
-import { AdditiveBlending, Color, MathUtils, NormalBlending, PerspectiveCamera, Scene, Vector2, WebGLRenderTarget } from "three";
+import { MathUtils, PerspectiveCamera, Scene, Vector2, WebGLRenderTarget } from "three";
 import { createGalaxyLayers } from "./background/galaxyLayers";
 import { createComposite, createSky, srgb } from "./background/sky";
 import { createStarfield, starCount } from "./background/starfield";
 import { createSharedUniforms } from "./background/uniforms";
 import { createEngine, lowPowerDevice } from "./engine";
 import { DEFAULT_GALAXY, generateGalaxy } from "./galaxy";
-import { readPalette, type SpacePalette } from "./palette";
+import { readPalette } from "./palette";
 import type { SceneOptions, SpaceScene } from "./types";
 
 // Three.js layers are numbered 0-31; 0 is everything's default.
@@ -371,11 +369,10 @@ export function createBackground(canvas: HTMLCanvasElement, initial: SceneOption
 
     // Fade out over the first 3/4 of a window of scrolling.
     const fade = 1 - MathUtils.smoothstep(progress, 0.1, 0.75);
-    const day = options.scheme === "light";
     // How crowded the stars are compared with the desktop reference.
     const density = galaxyOptions.count / (Math.PI * look.radius * look.radius);
     const crowding = MathUtils.clamp(STAR_DENSITY / density, 0.35, 1);
-    galaxy.uniforms.starIntensity.value = fade * crowding * (day ? 0.55 : 1);
+    galaxy.uniforms.starIntensity.value = fade * crowding;
     galaxy.uniforms.discIntensity.value = fade;
     galaxy.uniforms.bulgeIntensity.value = fade;
     // Faded out completely: skip drawing it at all.
@@ -395,10 +392,8 @@ export function createBackground(canvas: HTMLCanvasElement, initial: SceneOption
     // bottom edge all the way up.
     const textTop = frame.kind === "hero" ? -1e5 : text.top - y;
     shared.uTextRect.value.set(text.left, textTop, text.right, text.bottom - y);
-    // At night the galaxy also stays dim behind the floating nav; by day the
-    // light glass nav has its own backing, and the deeper blue overhead may
-    // run up to the window's top edge.
-    const heroTop = options.scheme === "light" ? -1e5 : Math.max(hero.top - y, NAV_CLEARANCE);
+    // The galaxy also stays dim behind the floating nav.
+    const heroTop = Math.max(hero.top - y, NAV_CLEARANCE);
     // (The hero is as wide as the window: its sides are the window's edges,
     // which shouldn't dim anything, so they're pushed far out.)
     shared.uHeroRect.value.set(-1e5, heroTop, 1e5, zones.openBottom - y);
@@ -504,49 +499,22 @@ export function createBackground(canvas: HTMLCanvasElement, initial: SceneOption
   moreContrast.addEventListener("change", onContrast);
   shared.uMoreContrast.value = moreContrast.matches ? 1 : 0;
 
-  // The galaxy's colors by day: a cool lavender-to-white "ghost", mixed from
-  // the palette (white, the arm blue, the violet nebula), so it reads as a
-  // pale spiral on the blue sky instead of a warm stain.
-  const scratch = new Color();
-  function setGalaxyColors(palette: SpacePalette, day: boolean) {
-    const { uCore, uArm, uPink } = galaxy.colors;
-    if (!day) {
-      srgb(palette.core, uCore.value);
-      srgb(palette.arm, uArm.value);
-      srgb(palette.nebula[2], uPink.value);
-      galaxy.uniforms.pastel.value = 0;
-      return;
-    }
-    const violet = srgb(palette.nebula[0], scratch);
-    srgb(palette.star, uCore.value).lerp(violet, 0.3);
-    srgb(palette.arm, uArm.value).lerp(violet, 0.45);
-    srgb(palette.nebula[2], uPink.value);
-    galaxy.uniforms.pastel.value = 0.15;
-  }
+  // The colors come from the CSS tokens (tokens.css). The site has one
+  // appearance, so they're read once.
+  const palette = readPalette();
+  const u = sky.material.uniforms;
+  srgb(palette.skyTop, u.uSkyTop!.value);
+  srgb(palette.skyBottom, u.uSkyBottom!.value);
+  srgb(palette.nebula[0], u.uNebula1!.value);
+  srgb(palette.nebula[1], u.uNebula2!.value);
+  srgb(palette.nebula[2], u.uNebula3!.value);
+  srgb(palette.core, galaxy.colors.uCore.value);
+  srgb(palette.arm, galaxy.colors.uArm.value);
+  srgb(palette.nebula[2], galaxy.colors.uPink.value);
 
   function apply(next: SceneOptions) {
     const wasAnimated = animated();
     options = next;
-    // The CSS tokens already switched with the appearance; read them again.
-    const palette = readPalette();
-    const day = next.scheme === "light";
-    shared.uDay.value = day ? 1 : 0;
-    const u = sky.material.uniforms;
-    srgb(palette.skyTop, u.uSkyTop!.value);
-    srgb(palette.skyBottom, u.uSkyBottom!.value);
-    srgb(palette.nebula[0], u.uNebula1!.value);
-    srgb(palette.nebula[1], u.uNebula2!.value);
-    srgb(palette.nebula[2], u.uNebula3!.value);
-    srgb(palette.star, u.uCloud!.value);
-    // By day: a deeper blue overhead, and blue-gray cloud undersides, both
-    // mixed from the sky's own top color toward a clear mid blue.
-    srgb(palette.skyTop, u.uZenith!.value).lerp(scratch.setRGB(0.42, 0.64, 0.95), 0.42);
-    srgb(palette.skyTop, u.uCloudShade!.value).lerp(scratch.setRGB(0.57, 0.67, 0.85), 0.5);
-    setGalaxyColors(palette, day);
-    galaxy.setBlending(day ? NormalBlending : AdditiveBlending);
-    // By day the stars are outshone by the sky.
-    starfield.points.visible = !day;
-
     if (animated()) {
       // Back to animating: start from where the page is, no swoop.
       if (!wasAnimated) scroll = window.scrollY;

@@ -4,7 +4,7 @@
 // moves the camera.
 //
 // What's on it, back to front (each one draw call; see the files in map/):
-//   sky        background color, deep space or a daytime blue  (backdrop.ts)
+//   sky        background color: deep space                   (backdrop.ts)
 //   haze       the galaxy's glowing core and arms             (backdrop.ts)
 //   dust       thousands of faint stars, a small spiral galaxy (backdrop.ts)
 //   territory  each category's region, like an empire's       (territory.ts)
@@ -134,7 +134,9 @@ export function createGalaxyMap(
   const lit = shared.lit.value; // per system, the current fade (1 lit, 0 dimmed)
   const litGoal = systems.map(() => 1);
   let ring = { appear: 0, goal: 0 };
-  let palette: SpacePalette = readPalette();
+  // The colors come from the CSS tokens (tokens.css); the site has one
+  // appearance, so they're read once.
+  const palette: SpacePalette = readPalette();
 
   // The hyperlane network and which stars each empire holds (network.ts).
   // Fewer unclaimed stars on phones and low-power machines.
@@ -213,7 +215,7 @@ export function createGalaxyMap(
   const selectionRing = createSelectionRing(shared);
   const layers: Layer[] = [
     createSky(shared),
-    createHaze(shared, galaxyShape),
+    createHaze(galaxyShape),
     // Point counts: about a quarter of the hero galaxy's, fewer again on
     // phones and low-power machines. The map is small; more would only blur.
     createDust(shared, { ...galaxyShape, count: lowPower ? 7000 : 16000, seed: 2026 }),
@@ -347,16 +349,6 @@ export function createGalaxyMap(
     settled = false;
   }
 
-  // ---------- Colors ----------
-  function applyPalette() {
-    palette = readPalette();
-    const light = options.scheme === "light";
-    shared.light.value = light ? 1 : 0;
-    for (const layer of layers) layer.setPalette(palette, light);
-    const system = systems[selected];
-    if (system) selectionRing.show(system.position, palette.categories[system.category] ?? palette.star);
-  }
-
   // ---------- Pointer and focus ----------
   // Listeners go on the map's container, which also holds the system
   // buttons, so hovering a label counts as hovering the map.
@@ -412,14 +404,12 @@ export function createGalaxyMap(
     else if (canvas.dataset.drag !== "active") canvas.dataset.drag = "on";
     sync();
   }
-  applyPalette();
+  for (const layer of layers) layer.setPalette(palette);
   apply();
 
   return {
     update(next) {
-      const schemeChanged = next.scheme !== options.scheme;
       options = next;
-      if (schemeChanged) applyPalette();
       apply();
     },
     focus(id) {

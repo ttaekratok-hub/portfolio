@@ -524,7 +524,7 @@ body::before {
 /* Projects.tsx sets aria-pressed on the active filter: screen readers say
    "pressed", and this rule draws the thumb from the same attribute. */
 /* The thumb also gets a 1px edge (the inset box-shadow): the fill alone is
-   only 1.3:1 against the track in light mode, and WCAG 1.4.11 asks for 3:1
+   too close to the track's color, and WCAG 1.4.11 asks for 3:1
    for whatever shows a control's state. box-shadow, not outline, so it never
    competes with the keyboard focus ring (an outline). */
 .segment[aria-pressed="true"] {

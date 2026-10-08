@@ -79,8 +79,7 @@
   list-style: none;
 }
 
-/* Each category's color, like an empire's on a strategy map. The tokens are
-   darker in light mode, so the colors hold up on the daytime sky. */
+/* Each category's color, like an empire's on a strategy map (tokens.css). */
 [data-category="infrastructure"] {
   --empire: var(--empire-infrastructure);
 }

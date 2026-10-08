@@ -1,9 +1,8 @@
 // Reads the design tokens and checks WCAG contrast of every text/background
-// pair in both appearances, so a color change can't quietly hurt legibility.
+// pair, so a color change can't quietly hurt legibility.
 //
 // Design tokens are the named CSS variables in site/src/styles/tokens.css
-// (--label, --bg...): light-mode values, plus a dark-mode block that overrides
-// the colors. WCAG (Web Content Accessibility Guidelines) measures legibility
+// (--label, --bg...). The site is always dark, so there's one set of values. WCAG (Web Content Accessibility Guidelines) measures legibility
 // as a contrast ratio from 1:1 (same color) to 21:1 (black on white).
 // tokens.css explains the rule in more detail.
 //
@@ -31,11 +30,7 @@ function block(selectorStart: string): string {
 function vars(text: string): Record<string, string> {
   return Object.fromEntries([...text.matchAll(/--([\w-]+):\s*([^;]+);/g)].map((m) => [m[1]!, m[2]!.trim()]));
 }
-const light = vars(block(":root {"));
-// The dark block redefines only appearance values (colors, shadows), not fonts
-// or spacing, so start from the light values and let the dark ones override
-// them, just as the CSS cascade does in the browser.
-const dark = { ...light, ...vars(block("@media (prefers-color-scheme: dark)")) };
+const theme = vars(block(":root {"));
 
 // "#0066cc" -> [0, 102, 204]: each pair of hex digits is one channel, 0-255.
 function rgb(hex: string): [number, number, number] {
@@ -100,21 +95,19 @@ const PAIRS: Array<[string, string]> = [
   ["label", "fill-tertiary over bg"],
   // The selected filter's "thumb".
   ["label", "control-thumb"],
-  // Text sits directly on the sky/space background (hero, section intros,
-  // About). By day the sky runs from --sky-top (darkest) to --sky-bottom.
+  // Text sits directly on the space background (hero, section intros,
+  // About), a gradient from --sky-top to --sky-bottom.
   ["label-secondary", "sky-top"],
   ["label-secondary", "sky-bottom"],
   ["tint", "sky-top"],
 ];
 
-// Generates one test per pair and appearance: 15 pairs x 2 = 30 tests.
+// Generates one test per pair: 15 tests.
 // test.each fills the %s placeholders in the name with each pair's values.
-for (const [name, theme] of [["light", light], ["dark", dark]] as const) {
-  describe(`${name} appearance`, () => {
-    test.each(PAIRS)("%s on %s is at least 4.5:1", (text, backgroundSpec) => {
-      const bg = background(theme, backgroundSpec);
-      const ratio = contrast(theme[text]!, bg);
-      expect(ratio, `${text} ${theme[text]} on ${backgroundSpec} (${bg})`).toBeGreaterThanOrEqual(4.5);
-    });
+describe("contrast", () => {
+  test.each(PAIRS)("%s on %s is at least 4.5:1", (text, backgroundSpec) => {
+    const bg = background(theme, backgroundSpec);
+    const ratio = contrast(theme[text]!, bg);
+    expect(ratio, `${text} ${theme[text]} on ${backgroundSpec} (${bg})`).toBeGreaterThanOrEqual(4.5);
   });
-}
+});

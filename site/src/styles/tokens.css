@@ -8,20 +8,17 @@
  * var(), e.g. `color: var(--label)` in global.css. Change a value here and
  * the whole site follows.
  *
- * Tokens also make light and dark mode cheap. Components ask for a role
- * ("label", "separator"), never a hex code; the dark-mode block further down
- * swaps the values behind those names, so no component has to know which
- * appearance is active.
+ * Components ask for a role ("label", "separator"), never a hex code, so a
+ * color can change here without touching any component. The site has one
+ * appearance, dark, whatever the visitor's light/dark setting.
  *
  * How it connects: App.tsx imports this file, then glass.css and
  * global.css, which read these tokens by name. space/palette.ts reads the space
  * tokens from JavaScript, so the canvas animation follows the theme too.
  * tests/tokens.test.ts parses this file as text and checks the contrast of
- * the label, link and button-text colors on their backgrounds, in both
- * appearances.
+ * the label, link and button-text colors on their backgrounds.
  *
- * Colors are Apple's system colors (HIG, 2025 values) for light and dark
- * appearance. Where an Apple value is too faint for small text on the web
+ * Colors are Apple's system colors (HIG, 2025 values) for dark appearance. Where an Apple value is too faint for small text on the web
  * (WCAG AA needs 4.5:1), we use Apple's own "Increase Contrast" variant or
  * the value apple.com uses.
  *
@@ -42,10 +39,8 @@
  * version of Dynamic Type on iOS.
  *
  * Try it: from the repo root, `npx vitest run tests/tokens.test.ts` runs the
- *   contrast check. Set the light secondary label to #8e8e93 (systemGray,
- *   2.9:1 on the page gray), watch the test fail, then undo.
- *   In Chrome DevTools, open More tools > Rendering and use "Emulate CSS
- *   media feature prefers-color-scheme" to flip between light and dark.
+ *   contrast check. Set the secondary label to #636366 (systemGray2, about
+ *   3.4:1 on the page), watch the test fail, then undo.
  * Learn more:
  *   https://developer.mozilla.org/en-US/docs/Web/CSS/Using_CSS_custom_properties
  *   https://developer.apple.com/design/human-interface-guidelines/color
@@ -53,11 +48,11 @@
  */
 
 :root {
-  /* Tells the browser the page supports both appearances, so its built-in
-     parts (scrollbars, form controls, the default background) follow the
-     system setting too. The color-scheme meta tag in index.html says the
-     same before this CSS has loaded, which avoids a white flash in dark mode. */
-  color-scheme: light dark;
+  /* Tells the browser the page is dark, so its built-in parts (scrollbars,
+     form controls, the default background) are dark too, whatever the
+     visitor's system setting. The color-scheme meta tag in index.html says
+     the same before this CSS has loaded, which avoids a white flash. */
+  color-scheme: dark;
 
   /* Fonts: real SF Pro on Apple devices via the system font (Apple's license
      doesn't allow serving SF as a web font); Inter, its closest open-source
@@ -137,143 +132,84 @@
   --duration: 0.35s;
   --content-width: 1080px; /* the content column; wider screens get side margins */
 
-  /* ---------- Light appearance ----------
-     Color names follow Apple's semantic colors: each names a role (label,
-     separator, fill), not a hue. Text and background colors are 6-digit hex
-     codes, the format tests/tokens.test.ts reads. */
-  --bg: #dcebff; /* the page behind content: the top of the daytime sky, its
-                   darkest part, so every contrast check uses the worst case */
-  --bg-elevated: #ffffff; /* secondarySystemGroupedBackground */
-  --label: #1d1d1f; /* apple.com's text color, a touch softer than black */
-  --label-secondary: #636366; /* an Apple gray (systemGray2's dark value): 5.2:1 or more on every
-                                 light background here; HIG's 60% gray is 3.4:1 on white */
+  /* ---------- Colors (dark only) ----------
+     The site is always dark: the space scene is its identity, and it looks
+     its best on a night sky. Color names follow Apple's semantic colors: each
+     names a role (label, separator, fill), not a hue, so components never
+     hard-code a hex code. Text and background colors are 6-digit hex codes,
+     the format tests/tokens.test.ts reads. */
+  --bg: #03040a; /* deep space: near-black with a hint of blue */
+  /* Shadows barely show on black, so depth is shown the HIG way: raised
+     surfaces are lighter than the background behind them. */
+  --bg-elevated: #1c1c1e; /* secondarySystemBackground */
+  --label: #f5f5f7; /* apple.com's off-white */
+  --label-secondary: #a1a1a6; /* apple.com's dark secondary text; HIG's secondaryLabel
+                                 (#98989f over cards) dips to 4.45:1 on a hovered row */
   /* Separators and fills are translucent like Apple's, so they tint whatever
-     surface they sit on. rgb(R G B / alpha) is the modern syntax; 0.29 means
-     29% opaque. */
-  --separator: rgb(60 60 67 / 0.29);
-  --fill: rgb(120 120 128 / 0.2); /* systemFill */
-  --fill-tertiary: rgb(118 118 128 / 0.12); /* tertiarySystemFill */
+     surface they sit on. rgb(R G B / alpha) is the modern syntax; 0.6 means
+     60% opaque. */
+  --separator: rgb(84 84 88 / 0.6);
+  --fill: rgb(120 120 128 / 0.36); /* systemFill */
+  --fill-tertiary: rgb(118 118 128 / 0.24); /* tertiarySystemFill */
   /* Blue has two tokens because it solves two contrast problems. tint is
-     blue text (links) on the gray or white background; tint-fill is a blue
-     background under white text (buttons, badges). */
-  --tint: #0066cc; /* link blue apple.com uses: systemBlue is 3.5:1 on white, its
-                     Increase Contrast variant #1e6ef4 only 4.1:1 on this gray */
-  --tint-fill: #1e6ef4; /* systemBlue, Increase Contrast: 4.6:1 with white text */
+     blue text (links) on the dark background; tint-fill is a blue background
+     under white text (buttons, badges). */
+  --tint: #0091ff; /* systemBlue, dark */
+  --tint-fill: #1e6ef4; /* white on dark systemBlue is only 3.2:1: keep the deeper blue */
   --on-tint: #ffffff;
   /* Accents appear only in the hero's gradient name. That's large text, where
-     WCAG asks for 3:1, and each is above 4:1 on the page background. */
-  --accent-indigo: #564ade;
-  --accent-purple: #b02fc2;
-  --accent-pink: #e7124d;
-  --focus-ring: #0066cc; /* keyboard focus outline; WCAG wants 3:1 against the page */
-  /* Two layered shadows: a tight one that defines the edge and a soft, wide
-     one that lifts the card off the page. */
-  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.06);
+     WCAG asks for 3:1. */
+  --accent-indigo: #6d7cff;
+  --accent-purple: #db34f2;
+  --accent-pink: #ff375f;
+  --focus-ring: #0091ff; /* keyboard focus outline; WCAG wants 3:1 against the page */
+  --card-shadow: none;
 
   /* Liquid Glass (navigation/controls layer only), used by glass.css: the
      see-through tint, the edge and highlight lines, the sheen, the opaque
      fallback (glass-solid) and the blur radius. */
-  --glass-tint: rgb(255 255 255 / 0.6);
-  --glass-edge: rgb(255 255 255 / 0.75);
-  --glass-highlight: rgb(255 255 255 / 0.95);
-  --glass-sheen: rgb(255 255 255 / 0.55);
-  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.12);
-  --glass-solid: #ffffff;
+  --glass-tint: rgb(44 44 48 / 0.5);
+  --glass-edge: rgb(255 255 255 / 0.16);
+  --glass-highlight: rgb(255 255 255 / 0.28);
+  --glass-sheen: rgb(255 255 255 / 0.18);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
+  --glass-solid: #1c1c1e;
   --glass-blur: 12px;
   /* The raised pill that marks the selected project filter (.segment). */
-  --control-thumb: #ffffff;
-  --control-thumb-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  --control-thumb: #636366; /* systemGray2, dark */
+  --control-thumb-shadow: none;
 
   /* Space. space/palette.ts reads these from JavaScript for the WebGL scenes
      (background.ts, map.ts), and global.css paints --sky-top/--sky-bottom
-     as the gradient shown before (or without) WebGL. Light mode is a soft
-     daytime sky; text sits directly on it, so --sky-top is light enough
-     for 4.5:1 (tests/tokens.test.ts checks it). */
-  --space-bg: #f4f8ff;
-  --sky-top: #dcebff;
-  --sky-bottom: #f4f8ff;
-  --space-star: #ffffff; /* by day: cloud highlights */
-  --space-core: #ffb878; /* galaxy core, pastel by day */
-  --space-arm: #7d95ff; /* galaxy arms */
-  --space-nebula-1: #b8a2ff;
-  --space-nebula-2: #8fdbe4;
-  --space-nebula-3: #ffa8c8;
+     as the gradient shown before (or without) WebGL. Text sits directly on
+     it, so tests/tokens.test.ts checks text contrast on both ends. */
+  --space-bg: #03040a;
+  --sky-top: #03040a;
+  --sky-bottom: #070816;
+  --space-star: #ffffff;
+  --space-core: #ffd8a8; /* warm, older stars in the core */
+  --space-arm: #8fb4ff; /* hot, young blue stars in the arms */
+  --space-nebula-1: #7b4dff; /* violet */
+  --space-nebula-2: #00b8c8; /* teal */
+  --space-nebula-3: #ff3d8b; /* magenta */
   /* Project map "empires", one color per category. */
-  --empire-infrastructure: #2f6fe4;
-  --empire-networking: #0f9d84;
-  --empire-software: #8a4be0;
-  --empire-embedded: #c47a00;
-  --empire-techart: #d63b6b;
-}
-
-/* Dark appearance. prefers-color-scheme is a media query that reports the
-   visitor's light/dark setting. When it's dark, these values replace the ones
-   above: same names, new values. Only colors and shadows change; sizes,
-   spacing and shapes are shared by both appearances. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #03040a; /* deep space: near-black with a hint of blue */
-    /* Shadows barely show on black, so dark mode shows depth the HIG way:
-       raised surfaces are lighter than the background behind them. */
-    --bg-elevated: #1c1c1e; /* secondarySystemBackground */
-    --label: #f5f5f7; /* apple.com's off-white */
-    --label-secondary: #a1a1a6; /* apple.com's dark secondary text; HIG's secondaryLabel
-                                   (#98989f over cards) dips to 4.45:1 on a hovered row */
-    --separator: rgb(84 84 88 / 0.6);
-    --fill: rgb(120 120 128 / 0.36);
-    --fill-tertiary: rgb(118 118 128 / 0.24);
-    --tint: #0091ff; /* systemBlue, dark */
-    --tint-fill: #1e6ef4; /* white on dark systemBlue is only 3.2:1: keep the deeper blue */
-    --on-tint: #ffffff;
-    --accent-indigo: #6d7cff;
-    --accent-purple: #db34f2;
-    --accent-pink: #ff375f;
-    --focus-ring: #0091ff;
-    --card-shadow: none;
-
-    --glass-tint: rgb(44 44 48 / 0.5);
-    --glass-edge: rgb(255 255 255 / 0.16);
-    --glass-highlight: rgb(255 255 255 / 0.28);
-    --glass-sheen: rgb(255 255 255 / 0.18);
-    --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
-    --glass-solid: #1c1c1e;
-    --control-thumb: #636366; /* systemGray2, dark */
-    --control-thumb-shadow: none;
-
-    --space-bg: #03040a;
-    --sky-top: #03040a;
-    --sky-bottom: #070816;
-    --space-star: #ffffff;
-    --space-core: #ffd8a8; /* warm, older stars in the core */
-    --space-arm: #8fb4ff; /* hot, young blue stars in the arms */
-    --space-nebula-1: #7b4dff; /* violet */
-    --space-nebula-2: #00b8c8; /* teal */
-    --space-nebula-3: #ff3d8b; /* magenta */
-    --empire-infrastructure: #3d8bff;
-    --empire-networking: #2fd3b0;
-    --empire-software: #b26bff;
-    --empire-embedded: #ffb23d;
-    --empire-techart: #ff5c8a;
-  }
+  --empire-infrastructure: #3d8bff;
+  --empire-networking: #2fd3b0;
+  --empire-software: #b26bff;
+  --empire-embedded: #ffb23d;
+  --empire-techart: #ff5c8a;
 }
 
 /* Increase Contrast: stronger labels and separators, Apple's high-contrast blue.
    prefers-contrast: more matches when the visitor turns on Increase Contrast
-   (iPhone, Mac) or a similar system setting. These blocks come after the ones
-   above, and when two rules are equally specific the later one wins: one of
-   the rules of the "cascade" in Cascading Style Sheets. The contrast test
-   doesn't read these blocks, but every text color here reaches 7.9:1 or
-   more. */
+   (iPhone, Mac) or a similar system setting. This block comes after :root,
+   and when two rules are equally specific the later one wins: one of the
+   rules of the "cascade" in Cascading Style Sheets. The contrast test doesn't
+   read this block, but every text color here reaches 7.9:1 or more. */
 @media (prefers-contrast: more) {
   :root {
-    --label-secondary: #3a3a3c;
-    --separator: #8e8e93;
-  }
-}
-/* "and": only when both Increase Contrast and dark mode are on. */
-@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-  :root {
     --label-secondary: #c7c7cc;
+    --separator: #8e8e93;
     --tint: #5cb8ff; /* systemBlue, Increase Contrast dark */
   }
 }

@@ -7,8 +7,6 @@ import type { Category, Filter } from "../data/projects";
 
 /** What every scene needs to know about the visitor's settings. */
 export interface SceneOptions {
-  /** Dark appearance: deep space. Light appearance: a soft daytime sky. */
-  scheme: "dark" | "light";
   /** The visitor asked for less motion: draw still frames, no camera drift. */
   reduceMotion: boolean;
   /** The pause button: stop the animation, keep the current frame. */

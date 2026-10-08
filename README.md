@@ -138,7 +138,8 @@ run inline ones.)
 
 **Design.** Following Apple's Human Interface Guidelines (HIG):
 
-- *Colors:* Apple's system colors for light and dark mode, kept as design
+- *Colors:* Apple's dark-mode system colors (the site is always dark, to suit
+  the space theme), kept as design
   tokens, named CSS variables like `--label`, in `site/src/styles/tokens.css`.
   Where an Apple value is too faint for small text on the web, the "Increase
   Contrast" variant or apple.com's own value is used; `tests/tokens.test.ts`
@@ -157,12 +158,13 @@ run inline ones.)
   Edge), frosted blur elsewhere, and a solid surface for Reduce Transparency /
   Increase Contrast.
 - Capsule controls with 44pt tap targets, inset grouped lists like iOS
-  Settings, continuous ("squircle") corners where the browser supports them,
-  and light/dark following the system setting.
+  Settings, and continuous ("squircle") corners where the browser supports
+  them.
 
 **Space theme (Three.js / WebGL).** Behind the page: a starfield, a procedural
-spiral galaxy and nebula clouds in dark mode, a soft daytime sky with clouds in
-light mode (`site/src/space/background.ts`). In the Projects section: an
+spiral galaxy and nebula clouds (`site/src/space/background.ts`). The site is
+always dark, whatever the visitor's light/dark setting: the space scene is its
+identity. In the Projects section: an
 interactive galaxy map where every project is a star system and every category
 an "empire", inspired by the Stellaris galaxy map (`site/src/space/map.ts`,
 `site/src/components/GalaxyMap.tsx`). How it stays fast and accessible:
@@ -178,7 +180,8 @@ an "empire", inspired by the Stellaris galaxy map (`site/src/space/map.ts`,
   (`site/src/space/random.ts`), so the galaxy is the same on every visit and the
   generator is unit-tested (`site/src/space/galaxy.ts`).
 - *Visitor settings:* Reduce Motion gets still frames; a floating pause button
-  stops the animation (WCAG 2.2.2); light/dark switches live; without WebGL the
+  stops the animation (WCAG 2.2.2); Increase Contrast dims the scene behind
+  text further; without WebGL the
   CSS gradient stays and the map says so. The map's star systems are real
   buttons, so it works with a keyboard and a screen reader, and every project is
   also listed as a card below it.
@@ -447,7 +450,7 @@ plain words. The file's own comments go into more detail.
 |---------|-----------|----------------|
 | Server-side rendering, pre-rendering | `site/src/entry-server.tsx`, `scripts/prerender.mjs` | Running React outside a browser to produce HTML. Done once per build here, so nginx only serves a file. |
 | Hydration | `site/src/main.tsx`, `site/src/components/Contact.tsx` | React taking over HTML that's already on the page. Its first render in the browser must match that HTML exactly; `Contact.tsx` shows two ways to add something the HTML can't contain. |
-| Design tokens | `site/src/styles/tokens.css` | Named CSS variables (`--label`, `--space-4`) defined once, with light and dark values, so no component hard-codes a color. |
+| Design tokens | `site/src/styles/tokens.css` | Named CSS variables (`--label`, `--space-4`) defined once, so no component hard-codes a color. |
 | WCAG contrast | `tests/tokens.test.ts` | How far apart text and its background are in brightness (luminance), as a ratio from 1:1 (identical) to 21:1 (black on white). Normal-size text needs at least 4.5:1 to stay readable. |
 | `backdrop-filter` | `site/src/styles/glass.css`, `site/src/components/GlassFilter.tsx` | Blurs or bends what's *behind* an element, not the element itself. The base of Liquid Glass. |
 | WebGL, Three.js | `site/src/space/engine.ts`, `site/src/space/background.ts` | WebGL draws with the GPU inside a `<canvas>`; Three.js wraps it in scenes, cameras and materials. Each layer of stars is one draw call of many points. |
@@ -537,7 +540,7 @@ that serves it. Each step builds on the one before.
    Try it: `npm run build && grep -o '<h1.*</h1>' dist/index.html` finds the
    heading in the file, before any JavaScript has run.
 5. **Styling.** `site/src/styles/tokens.css` → `glass.css` → `global.css`:
-   design tokens, dark mode, contrast, `backdrop-filter`.
+   design tokens, the dark color scheme, contrast, `backdrop-filter`.
    Try it: `npx vitest run tests/tokens.test.ts`
    Learn more: https://developer.apple.com/design/human-interface-guidelines/
 6. **Tooling.** `package.json` (the `scripts`) → `vite.config.ts` →
