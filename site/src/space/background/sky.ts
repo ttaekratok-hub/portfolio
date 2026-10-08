@@ -195,3 +195,70 @@ export function createComposite(shared: SharedUniforms, soft: Texture) {
     },
   };
 }
+
+// The edge fade: a full-screen pass drawn last, over the stars, that fades
+// the whole scene into the page's background color at the window's top and
+// bottom edges.
+//
+// Why here and not in CSS: on iPhone, Safari 26 paints its own solid strips
+// over the screen's top (status bar) and bottom (home indicator and toolbar),
+// in a color it takes from the page's background, and a page can't draw into
+// them. Where the scene met a strip, it made a hard line. A CSS overlay can't
+// fade into it: Safari doesn't draw position: fixed elements below its
+// floating toolbar, so the overlay was cut off there while this canvas went
+// on behind the toolbar, unfaded. Drawn inside the canvas, the fade goes
+// wherever the canvas goes.
+//
+// uEdgeTop / uEdgeBottom are how much of each edge Safari covers, in CSS
+// pixels (background.ts measures them): the fade is solid there and eases
+// out just beyond, so the scene has faded by the time it meets a strip.
+const EDGE_FRAGMENT = /* glsl */ `
+uniform vec2 uViewport;
+uniform float uEdgeTop;
+uniform float uEdgeBottom;
+uniform vec3 uColor;
+varying vec2 vUv;
+
+// 1 inside the covered edge, then eased out: 45% after \`a\` CSS pixels,
+// nothing after \`b\`. Solid at the edge, then quickly clear, so the galaxy
+// under the hero keeps nearly all of its stars.
+float fade(float d, float a, float b) {
+  if (d <= 0.0) return 1.0;
+  if (d < a) return mix(1.0, 0.45, d / a);
+  return mix(0.45, 0.0, clamp((d - a) / (b - a), 0.0, 1.0));
+}
+
+void main() {
+  float y = (1.0 - vUv.y) * uViewport.y; // CSS pixels from the top
+  float alpha = max(fade(y - uEdgeTop, 20.0, 56.0), fade(uViewport.y - y - uEdgeBottom, 24.0, 64.0));
+  gl_FragColor = vec4(uColor, alpha);
+}
+`;
+
+export function createEdgeFade(shared: SharedUniforms) {
+  const geometry = new PlaneGeometry(2, 2);
+  const material = new ShaderMaterial({
+    vertexShader: FULL_SCREEN_VERTEX,
+    fragmentShader: EDGE_FRAGMENT,
+    uniforms: {
+      uViewport: shared.uViewport,
+      uEdgeTop: { value: 0 },
+      uEdgeBottom: { value: 0 },
+      uColor: { value: new Color() },
+    },
+    transparent: true, // normal "paint over" blending, by alpha
+    depthTest: false,
+    depthWrite: false,
+  });
+  const mesh = new Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 100; // last, over everything
+  return {
+    mesh,
+    material,
+    dispose() {
+      geometry.dispose();
+      material.dispose();
+    },
+  };
+}
