@@ -118,7 +118,9 @@ export function Projects() {
           out from under the finger before the click lands. :focus-visible is the
           browser's own "focused by keyboard" test. "nearest" scrolls as little as
           possible; the `?.` skips it in the test DOM, which lacks the method. */}
-      <GalaxyMap filter={filter} />
+      {/* The map dims projects outside the filter; its "View project card"
+          link calls onShowAll first when that card is filtered out. */}
+      <GalaxyMap filter={filter} onShowAll={() => setFilter("all")} />
       <div className="segmented-scroller">
         <div className="segmented" role="group" aria-label="Filter projects">
           {FILTERS.map(({ id, label }) => (
