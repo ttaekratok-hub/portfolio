@@ -136,9 +136,9 @@ export const PROJECTS: Project[] = [
   {
     title: "Parallel & GPU Programming",
     year: "OSU, CS 475",
-    summary: "Parallel Programming coursework: projects that split work across CPU cores and the GPU.",
+    summary: "Parallel Programming coursework: projects that split work across CPU cores and the GPU, with OpenMP threads, SIMD vector instructions, CUDA and OpenCL.",
     categories: ["software"],
-    tech: ["Parallel programming", "GPU"],
+    tech: ["OpenMP", "SIMD", "CUDA", "OpenCL"],
     links: [],
   },
   {
