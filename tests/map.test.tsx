@@ -41,13 +41,14 @@ vi.mock("../site/src/space/palette", async (importOriginal) => ({
 vi.mock("../site/src/space/map", () => ({
   createGalaxyMap(_canvas: HTMLCanvasElement, systems: MapSystem[], callbacks: GalaxyMapCallbacks) {
     if (fake.fail) throw new Error("WebGL context could not be created");
-    // Systems spread on a diagonal, all on screen.
+    // Systems spread on a diagonal, all on screen (inside the 720 x 480 frame
+    // below) however many projects there are.
     const report = () =>
       callbacks.onScreenPositions(
         systems.map((s, i) => ({
           id: s.id,
-          x: 60 + i * 60,
-          y: 40 + i * 40,
+          x: 60 + (i * 600) / systems.length,
+          y: 40 + (i * 400) / systems.length,
           visible: s.id !== fake.offscreen,
           depth: i / systems.length,
           ringX: 0,

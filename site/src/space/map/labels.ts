@@ -19,6 +19,8 @@ const SHORT_LABELS: Record<string, string> = {
   "public-issue-reporting-app": "Issue-Reporting App",
   "stm32-real-time-line-following-robot": "Line-Following Robot",
   "space-scene-galaxy-map": "Space Scene",
+  "client-server-socket-programs": "Socket Programs",
+  "parallel-gpu-programming": "Parallel & GPU",
   "reflection-refraction-shader": "Refraction Shader",
 };
 
