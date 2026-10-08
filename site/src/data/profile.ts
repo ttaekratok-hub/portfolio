@@ -75,8 +75,7 @@ export const EXPERIENCE: ReadonlyArray<Job> = [
     when: "Jun 2025 – May 2026",
     points: [
       "Team Member at both Market of Choice and Taco Bell at the same time",
-      "Kept studying software engineering in my own time",
-      "Built my Kubernetes platform from the ground up",
+      "Built my software engineering skills from the ground up",
     ],
   },
 ];
