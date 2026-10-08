@@ -36,8 +36,10 @@ import type { Claim, MapNode } from "./network";
 import { MAX_SYSTEMS, srgb, type Layer, type SharedUniforms } from "./shared";
 
 const EMPIRES = CATEGORY_ORDER.length;
-/** The most held stars the shader handles (GLSL arrays need a fixed size). */
-export const MAX_CLAIMS = 64;
+/** The most held stars the shader handles (GLSL arrays need a fixed size).
+ *  88 = up to 24 systems + up to 64 network stars, so no claim is ever cut;
+ *  that is about 145 fragment uniform vectors, under WebGL2's minimum of 224. */
+export const MAX_CLAIMS = 88;
 /** Each held star's reach: influence = weight * exp(-distance^2 / REACH). */
 export const REACH = 3;
 /** A spot is claimed where an empire's influence is above THRESHOLD. */

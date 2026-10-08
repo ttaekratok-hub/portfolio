@@ -564,7 +564,6 @@ export function createBackground(canvas: HTMLCanvasElement, initial: SceneOption
     engine.requestRender();
   }
   apply(initial);
-  (window as unknown as { __bg: unknown }).__bg = { galaxy, starfield, sky, composite, shared, render: () => { dirty = true; engine.requestRender(); }, frame, look }; // DEBUG
 
   return {
     update: apply,

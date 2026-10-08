@@ -176,6 +176,8 @@ export function createGalaxyMap(
         // Re-aim at once: a resize shouldn't animate.
         if (!glide) view = goalView();
         positionsDirty = true;
+        // Resizing clears the canvas, so draw now: the frame budget mustn't skip it.
+        redraw = true;
         settled = true;
       },
       onFrame(delta) {
@@ -412,13 +414,6 @@ export function createGalaxyMap(
   }
   applyPalette();
   apply();
-  // DEBUG-TEMP
-  (globalThis as unknown as Record<string, unknown>).__mapSetAzimuth = (a: number) => {
-    azimuth = a;
-    positionsDirty = true;
-    redraw = true;
-    engine.requestRender();
-  };
 
   return {
     update(next) {

@@ -604,7 +604,8 @@ body::before {
 
 .card-links {
   display: flex;
-  gap: var(--space-4);
+  flex-wrap: wrap; /* two long domain links don't fit side by side on a phone */
+  column-gap: var(--space-4);
   font-size: var(--text-subhead);
   font-weight: 600;
 }
@@ -747,6 +748,9 @@ body::before {
 /* One card per row, with space between: jobs and schools read top to bottom. */
 .stack {
   display: grid;
+  /* minmax(0, 1fr), not the implicit auto column: auto grows to the widest
+     unbreakable line inside a card and pushes the page wider than a phone. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   margin: 0;
   padding: 0;

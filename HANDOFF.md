@@ -25,21 +25,16 @@ down the Cloudflare tunnels and broke the owner's other services.
   Pi needs checking, give the owner read-only commands to run (see README
   "Day to day") instead.
 
-## Work in progress: space theme (not merged yet)
-Three branches, pushed from the Pi on 2026-10-08:
-- `space-theme`: shared foundation (engine, palette, galaxy generator, map
-  layout, tests) + docs. Base for the two below.
-- `space-bg`: deep-space galaxy background and daytime sky, on top of
-  `space-theme`. Its last commit is **WIP, unverified**: edits saved from the
-  Pi during the overload, never linted/tested/reviewed.
-- `space-map`: interactive Stellaris-style galaxy map of projects, same
-  situation (last commit is unverified WIP).
-
-Suggested next step: check out `space-theme`, run the local checks, then
-review the WIP commit on each feature branch (keep, fix or drop it), merge
-`space-bg` and `space-map` into one PR into `main`, and look at the result
-in a headless browser in the cloud session (desktop + mobile width, light
-and dark mode, `prefers-reduced-motion`).
+## Space theme: verified, awaiting PR (2026-10-08)
+`space-theme`, `space-bg` and `space-map` are merged together on
+`claude/ecstatic-euler-5phb35`. The two unverified WIP commits were
+reviewed and kept, with fixes: two leftover debug globals removed (they kept
+disposed scenes alive), the map redraws immediately on resize (no flicker),
+and the territory shader holds every claim (MAX_CLAIMS 88). An older phone
+bug was fixed too: About cards and their links pushed the page to 600px wide
+on a 390px phone. Lint, 79 tests, build and HTML validation pass; checked in
+headless Chromium at desktop and phone widths, light and dark mode, and with
+Reduce Motion, with no console errors. Next: open the PR into `main`.
 
 ## Where things are
 - Repo `ttaekratok-hub/portfolio`, default branch `main`. GitHub is the only
