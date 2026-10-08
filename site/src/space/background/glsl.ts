@@ -16,7 +16,7 @@
  * numbers from its position with a hash, so the same pixel always gets the
  * same value (deterministic, like the seeded generator in random.ts).
  */
-export const NOISE_GLSL = /* glsl */ `
+export const HASH_GLSL = /* glsl */ `
 // A hash: scrambles a 2D position into a number in [0, 1). Neighboring inputs
 // give unrelated outputs. ("Hash without Sine" by Dave Hoskins: no sin(),
 // whose precision differs between GPUs.)
@@ -25,6 +25,11 @@ float hash12(vec2 p) {
   p3 += dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z);
 }
+`;
+
+/** The hash plus smooth noise built from it. Needs FBM_OCTAVES defined. */
+export const NOISE_GLSL = /* glsl */ `
+${HASH_GLSL}
 
 // Value noise: a random value at every whole-number grid point, smoothly
 // blended in between. The result is a soft, blobby pattern instead of the
@@ -81,17 +86,25 @@ float relativeLuminance(vec3 linearColor) { return dot(linearColor, vec3(0.2126,
  * Where the galaxy may shine at full strength. Page text sits right on top
  * of this canvas, and WCAG asks for 4.5:1 contrast: the dark-mode secondary
  * text (#a1a1a6) only gets that over pixels with a luminance under about
- * 0.04, a very dark gray. So the scene caps its brightness wherever text can
- * be, and lets the galaxy glow only in the hero's empty areas (above and
+ * 0.04, a very dark gray. So the scene keeps the light low wherever text can
+ * be, and lets the galaxy glow only in the hero's empty areas (beside and
  * below its text block). background.ts measures those areas on the page and
  * passes them in as rectangles, in CSS pixels from the top-left corner of the
- * window. With Reduce Motion or Pause the picture stops following the page
- * while text keeps scrolling over it, so uZones is 0 and the cap applies
- * everywhere.
+ * window. uZones is 0 when no area is safe (below the hero, or in the calm
+ * still frame of Reduce Motion and Pause).
+ *
+ * Two different tools use openness() below:
+ *   - the soft layers (sky, nebula, the galaxy's glow) pass through the
+ *     composite's brightness ceiling (sky.ts), a hard guarantee per pixel;
+ *   - the sharp layers (the galaxy's stars, the starfield) are drawn after
+ *     the composite, at full resolution, so the ceiling never sees them.
+ *     Behind text they're thinned out and dimmed instead (galaxyLayers.ts,
+ *     starfield.ts): fewer, fainter specks, not a guarantee for every pixel.
  */
 export const ZONES_GLSL = /* glsl */ `
 uniform vec4 uTextRect; // the hero's text block (padded): left, top, right, bottom
 uniform vec4 uHeroRect; // the hero's empty space around it, below the nav
+uniform float uTextRamp; // width of the soft edge around the text block, px
 uniform float uZones;   // 1: allow the open zones, 0: text-safe everywhere
 
 // Signed distance from point p to a rectangle: negative inside, positive
@@ -104,9 +117,10 @@ float boxDistance(vec2 p, vec4 rect) {
 
 // 1 where the galaxy may be bright, 0 where text can be, with soft edges so
 // the change is never a visible line (a wide one around the text, whose
-// bright neighbor is the galaxy's core).
+// bright neighbor is the galaxy's core; narrower on short windows, where the
+// space below the text is scarce).
 float openness(vec2 cssPixel) {
-  float awayFromText = smoothstep(0.0, 110.0, boxDistance(cssPixel, uTextRect));
+  float awayFromText = smoothstep(0.0, uTextRamp, boxDistance(cssPixel, uTextRect));
   float insideHero = smoothstep(0.0, 56.0, -boxDistance(cssPixel, uHeroRect));
   return uZones * awayFromText * insideHero;
 }

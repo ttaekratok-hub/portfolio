@@ -14,7 +14,9 @@
 // to what's already on screen, the way light adds up, so overlapping stars get
 // brighter and never darker. That is how the glow is faked without any
 // post-processing. In light mode the galaxy is a pale "daytime ghost", like
-// the Moon in a blue sky: normal (alpha) blending, low opacity, pastel colors.
+// the Moon in a blue sky: normal (alpha) blending, low opacity, cool lavender
+// colors (background.ts picks them), its arms carrying the shape and its core
+// held back, so it reads as a spiral rather than a bright smudge.
 // Learn more: https://threejs.org/docs/#api/en/constants/Materials (blending)
 import {
   AdditiveBlending,
@@ -29,7 +31,7 @@ import {
   type Blending,
 } from "three";
 import type { GalaxyOptions, GalaxyPoints } from "../galaxy";
-import { NOISE_GLSL, ZONES_GLSL } from "./glsl";
+import { HASH_GLSL, NOISE_GLSL, ZONES_GLSL } from "./glsl";
 import type { SharedUniforms } from "./uniforms";
 
 const STAR_VERTEX = /* glsl */ `
@@ -40,7 +42,8 @@ uniform float uPixelRatio;
 uniform float uSize;      // a typical star's size in CSS pixels...
 uniform float uRefDepth;  // ...at this distance from the camera
 uniform float uIntensity; // overall brightness (fades out as the page scrolls)
-uniform float uTextDim;   // brightness kept behind text (see ZONES_GLSL)
+uniform float uTextKeep;  // share of the stars kept behind text (see below)
+uniform float uTextLight; // and how bright those few stay
 uniform float uDay;
 uniform float uPastel;    // light mode: how far colors are mixed toward white
 uniform vec3 uCore;
@@ -48,7 +51,16 @@ uniform vec3 uArm;
 uniform vec3 uPink;
 varying vec3 vColor;
 varying float vAlpha;
+${HASH_GLSL}
 ${ZONES_GLSL}
+
+// More random values from the star's one seed. Hashing (seed, k) gives an
+// independent-looking number for each k. (Simpler tricks like
+// fract(seed * 12.9898) don't: they're sawtooth waves of the same seed, so
+// "random" size and brightness would secretly move together.)
+float random(float k) {
+  return hash12(vec2(aSeed * 4096.0, k));
+}
 
 void main() {
   // modelViewMatrix moves the star from the galaxy's own coordinates into
@@ -57,16 +69,15 @@ void main() {
   vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * viewPosition;
 
-  // Three more random values from the one seed: fract(seed * big number)
-  // scrambles it into unrelated-looking digits.
-  float r1 = fract(aSeed * 12.9898);
-  float r2 = fract(aSeed * 78.233);
-  float r3 = fract(aSeed * 37.719);
+  float r1 = random(1.0);
+  float r2 = random(2.0);
+  float r3 = random(3.0);
+  float r4 = random(4.0);
 
-  // Size: mostly small stars, plus a rare bright giant. Dividing by the depth
-  // is perspective: twice as far looks half as big (viewPosition.z is
-  // negative in front of the camera, hence the minus).
-  float giant = step(0.988, aSeed);
+  // Size: mostly small stars, plus a rare bright giant (1.2% of them). Dividing
+  // by the depth is perspective: twice as far looks half as big
+  // (viewPosition.z is negative in front of the camera, hence the minus).
+  float giant = step(0.988, random(5.0));
   float cssSize = uSize * mix(0.6, 1.4, r1) * (1.0 + 1.5 * giant);
   float pixels = cssSize * uPixelRatio * uRefDepth / -viewPosition.z;
   // The sprite square is 2.5x the star (its soft edge needs room) and at
@@ -84,23 +95,24 @@ void main() {
   color = mix(color, uPink, step(0.94, r3) * smoothstep(0.22, 0.45, aRadial) * 0.75);
 
   // Brightness: the core has tens of thousands of stars on a few hundred
-  // pixels, so each one there is dimmer; the bulge layer provides its glow.
-  float alpha = mix(0.16, 0.95, smoothstep(0.03, 0.35, aRadial)) * mix(0.3, 1.0, r1) * energy;
+  // pixels, so each one there is much dimmer (or they'd add up to a flat,
+  // noisy white patch); the bulge layer provides its glow. Giants shine a
+  // little brighter whatever their size.
+  float alpha = mix(0.04, 0.95, smoothstep(0.04, 0.4, aRadial)) * mix(0.3, 1.0, max(r1, giant)) * energy;
 
-  // Behind text, dim the stars: the crowded core a lot (uTextDim), the
-  // sparse arms only a little, since a few specks don't hurt reading.
+  // Behind text: thin the stars out and dim the few that remain. These
+  // stars are drawn after the composite's brightness ceiling (glsl.ts), so
+  // this is what keeps them from sparkling between the letters.
   // gl_Position.xy / w is the star's spot on screen from -1 to 1
   // ("normalized device coordinates"); this converts it to CSS pixels from
   // the top-left, like the page.
   vec2 ndc = gl_Position.xy / gl_Position.w;
   vec2 cssPixel = vec2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5) * uViewport;
-  float textDim = mix(uTextDim, 0.5, smoothstep(0.15, 0.5, aRadial));
-  float keep = mix(textDim, 1.0, openness(cssPixel));
-  // Thin the stars out rather than dimming all of them: keep sqrt(keep) of
-  // them at sqrt(keep) brightness. The total light is the same, but a few
-  // clear sparkles look like stars, while many faint ones look like dust.
-  float r4 = fract(aSeed * 53.17);
-  alpha *= sqrt(keep) * step(r4, sqrt(keep));
+  float open = openness(cssPixel);
+  // step(r4, share) is 1 for that share of the stars (r4 is uniform in 0-1),
+  // so each star is either kept or hidden: a few clear sparkles look like
+  // stars, many faint ones look like dust.
+  alpha *= mix(uTextLight, 1.0, open) * step(r4, mix(uTextKeep, 1.0, open));
 
   vColor = mix(color, vec3(1.0), uPastel * uDay);
   vAlpha = alpha * uIntensity;
@@ -164,7 +176,10 @@ void main() {
   // Arms widen outward, the same way galaxy.ts scatters its stars; the glow
   // hugs the arm's middle a bit tighter than the stars do.
   float width = uScatter * (0.35 + r) * 0.8;
-  float arm = exp(-across * across / (2.0 * width * width));
+  // At the very center every direction is "on an arm" (across is 0 there)
+  // and the arms' angles bunch up into a sharp pinwheel, so they fade in
+  // over the first few percent of the radius; the inner disc takes over.
+  float arm = exp(-across * across / (2.0 * width * width)) * smoothstep(0.02, 0.12, r);
   // A dust lane: dark gas along the inner edge of each arm hides some light.
   float laneWidth = 0.35 * width;
   float laneOffset = across + 0.55 * width;
@@ -176,7 +191,7 @@ void main() {
   float rim = 1.0 - smoothstep(0.5, 1.05, r);
   float density = arm * (0.1 + 2.2 * clumps * clumps) * (1.0 - 0.6 * lane);
   density = (density + 0.06) * rim * exp(-1.6 * r);
-  density += 0.35 * exp(-r * r / 0.012); // the dense inner disc around the bulge
+  density += 0.22 * exp(-r * r / 0.015); // the dense inner disc around the bulge
 
   vec3 color = mix(uCore, uArm, smoothstep(0.04, 0.5, r));
   // Pink knots of glowing hydrogen where stars are being born, along the arms.
@@ -186,7 +201,8 @@ void main() {
   // Dimmer where page text may be. gl_FragCoord is this pixel's position in
   // the low-resolution picture (y up); convert it to page CSS pixels (y down).
   // As with the stars, the faint arms keep most of their light; the bright
-  // inner disc is what gets dimmed.
+  // inner disc is what gets dimmed. (The composite's ceiling then has the
+  // final word, see glsl.ts.)
   vec2 cssPixel = vec2(gl_FragCoord.x, uSoftSize.y - gl_FragCoord.y) / uSoftSize * uViewport;
   float textDim = mix(uTextDim, 0.8, smoothstep(0.12, 0.45, r));
   float strength = uIntensity * mix(textDim, 1.0, openness(cssPixel));
@@ -194,7 +210,14 @@ void main() {
   if (uDay < 0.5) {
     gl_FragColor = vec4(color * density * strength, 1.0); // added to the sky
   } else {
-    gl_FragColor = vec4(mix(color, vec3(1.0), uPastel), min(1.0, density * strength));
+    // By day the color is laid over the sky with an opacity (alpha), so
+    // the opacity alone draws the shape. The arms carry it; the core, which
+    // has most of the density, is capped at a quarter, so the ghost reads
+    // as a spiral and not as a blot under the buttons.
+    float arms = arm * (0.2 + 1.6 * clumps * clumps) * (1.0 - 0.5 * lane) * rim * smoothstep(0.04, 0.22, r);
+    float core = min(0.25, 0.6 * exp(-r * r / 0.02));
+    float opacity = (0.7 * arms + core) * strength;
+    gl_FragColor = vec4(mix(color, vec3(1.0), uPastel), min(0.6, opacity));
   }
 }
 `;
@@ -227,17 +250,22 @@ void main() {
   // Squash vertically a little: the bulge is a flattened ball, seen at a tilt.
   vec2 p = vOffset * vec2(1.0, 1.35);
   float d2 = dot(p, p);
-  // Two Gaussians: a small hot center plus a wide, faint halo.
-  float glow = 0.6 * exp(-d2 * 30.0) + 0.22 * exp(-d2 * 7.0);
+  // Three Gaussian bells: a small hot nucleus, a glow around it and a wide,
+  // faint halo. Together with the disc and the sky they stay just under 1.0:
+  // the low-resolution picture stores 0-1 per channel, and anything brighter
+  // would be clipped into a flat white patch.
+  float glow = 0.6 * exp(-d2 * 90.0) + 0.2 * exp(-d2 * 12.0) + 0.07 * exp(-d2 * 3.5);
   glow *= 1.0 - smoothstep(0.6, 1.0, sqrt(d2)); // fade out before the square's edge
-  // White-hot in the middle, the warm core color further out.
-  vec3 color = mix(vec3(1.0, 0.96, 0.88), uCore, smoothstep(0.0, 0.3, sqrt(d2)));
+  // White-hot in the middle (plain white by day), the core color further out.
+  vec3 hot = mix(vec3(1.0, 0.96, 0.88), vec3(1.0), uDay);
+  vec3 color = mix(hot, uCore, smoothstep(0.0, 0.3, sqrt(d2)));
   vec2 cssPixel = vec2(gl_FragCoord.x, uSoftSize.y - gl_FragCoord.y) / uSoftSize * uViewport;
   float strength = uIntensity * mix(uTextDim, 1.0, openness(cssPixel));
   if (uDay < 0.5) {
     gl_FragColor = vec4(color * glow * strength, 1.0);
   } else {
-    gl_FragColor = vec4(mix(color, vec3(1.0), uPastel), min(1.0, glow * strength));
+    // By day: a soft pale glow, never more than a quarter opaque.
+    gl_FragColor = vec4(mix(color, vec3(1.0), uPastel), min(0.25, 1.4 * glow * strength));
   }
 }
 `;
@@ -269,7 +297,9 @@ export function createGalaxyLayers(shared: SharedUniforms, galaxy: GalaxyPoints,
       uSize: { value: 1.6 },
       uRefDepth: { value: 30 },
       uIntensity: { value: 1 },
-      uTextDim: { value: 0.2 },
+      // Behind text: keep 12% of the stars, at 40% of their brightness.
+      uTextKeep: { value: 0.12 },
+      uTextLight: { value: 0.4 },
     },
     transparent: true,
     depthTest: false, // no depth sorting: with additive light the order doesn't matter
@@ -346,7 +376,6 @@ export function createGalaxyLayers(shared: SharedUniforms, galaxy: GalaxyPoints,
       starIntensity: starMaterial.uniforms.uIntensity!,
       starSize: starMaterial.uniforms.uSize!,
       starRefDepth: starMaterial.uniforms.uRefDepth!,
-      textDim: starMaterial.uniforms.uTextDim!,
       glowTextDim: glowDim,
       discIntensity: discMaterial.uniforms.uIntensity!,
       bulgeIntensity: bulgeMaterial.uniforms.uIntensity!,

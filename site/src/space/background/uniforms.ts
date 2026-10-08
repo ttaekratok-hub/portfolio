@@ -8,8 +8,15 @@ import { Vector2, Vector4 } from "three";
 
 export function createSharedUniforms() {
   return {
-    /** The window's size in CSS pixels. */
+    /** The canvas's size in CSS pixels, right now. */
     uViewport: { value: new Vector2(1, 1) },
+    /**
+     * The size things are laid out on, in CSS pixels: the same as uViewport,
+     * except that on touch screens the height ignores the browser's toolbar
+     * sliding in and out (it keeps the tallest height seen at this width), so
+     * stars and clouds don't jump each time it does (background.ts).
+     */
+    uLayout: { value: new Vector2(1, 1) },
     /** The low-resolution picture's size, in its own pixels (background.ts). */
     uSoftSize: { value: new Vector2(1, 1) },
     /** Device pixels per CSS pixel (2 on most phones), capped by the engine. */
@@ -22,9 +29,13 @@ export function createSharedUniforms() {
     uMouse: { value: new Vector2() },
     /** 0 in dark mode (space), 1 in light mode (daytime sky). */
     uDay: { value: 0 },
+    /** 1 when the visitor asked for more contrast (prefers-contrast: more). */
+    uMoreContrast: { value: 0 },
     // The legibility zones (glsl.ts, ZONES_GLSL), as left, top, right, bottom.
     uTextRect: { value: new Vector4(0, 0, 0, 0) },
     uHeroRect: { value: new Vector4(0, 0, 0, 0) },
+    /** How wide the soft edge around the text block is, in CSS pixels. */
+    uTextRamp: { value: 110 },
     uZones: { value: 0 },
   };
 }

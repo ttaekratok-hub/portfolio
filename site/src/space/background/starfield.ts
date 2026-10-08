@@ -19,25 +19,29 @@ const VERTEX = /* glsl */ `
 attribute vec3 aColor;
 attribute float aSeed;
 uniform vec2 uViewport;
+uniform vec2 uLayout;
 uniform float uPixelRatio;
 uniform float uScroll;
 uniform vec2 uMouse;
 uniform float uTime;
+uniform float uMoreContrast;
 varying vec3 vColor;
 varying float vAlpha;
 
 void main() {
   // position.xy: the star's spot on the window (0-1); position.z: its depth,
-  // 0 = farthest layer, 1 = nearest.
+  // 0 = farthest layer, 1 = nearest. Spread over the steady layout size
+  // (uniforms.ts), so a phone's toolbar sliding away uncovers more stars
+  // instead of stretching them all.
   float depth = position.z;
-  vec2 pixel = position.xy * uViewport;
+  vec2 pixel = position.xy * uLayout;
   // Parallax: far stars move 3% as fast as the page, near ones 22%. The
   // mouse shifts them the other way, a few pixels, like leaning your head.
   pixel.y -= uScroll * mix(0.03, 0.22, depth);
   pixel -= uMouse * mix(2.0, 14.0, depth);
   // Wrap around the edges (with 4px to spare, so stars leave the window
   // completely before reappearing on the other side).
-  pixel = mod(pixel + 4.0, uViewport + 8.0) - 4.0;
+  pixel = mod(pixel + 4.0, uLayout + 8.0) - 4.0;
   // From CSS pixels (y down) to clip space (-1..1, y up), skipping the camera.
   gl_Position = vec4(pixel.x / uViewport.x * 2.0 - 1.0, 1.0 - pixel.y / uViewport.y * 2.0, 0.0, 1.0);
 
@@ -50,8 +54,13 @@ void main() {
 
   float speed = mix(0.4, 1.7, fract(aSeed * 91.7));
   float twinkle = 0.72 + 0.28 * sin(uTime * speed + aSeed * 60.0);
+  // The page's text runs down the middle of the window. The bigger, nearer
+  // stars are dimmed there (half, or a fifth with "more contrast"), so they
+  // don't blink right behind the letters; the far ones are too faint to matter.
+  float center = 1.0 - smoothstep(0.1, 0.45, abs(pixel.x / uViewport.x - 0.5));
+  float calm = mix(1.0, mix(0.5, 0.2, uMoreContrast), center * smoothstep(0.25, 0.4, depth));
   vColor = aColor;
-  vAlpha = mix(0.3, 1.0, depth) * mix(0.45, 1.0, fract(aSeed * 17.3)) * twinkle * energy;
+  vAlpha = mix(0.3, 1.0, depth) * mix(0.45, 1.0, fract(aSeed * 17.3)) * twinkle * energy * calm;
 }
 `;
 
