@@ -361,11 +361,25 @@ a:hover {
      body::before  a CSS gradient: what you see before the WebGL scene loads,
                    and all you see without WebGL
      .space-canvas the WebGL scene (SpaceBackground.tsx), fading in over it
-   A negative z-index paints them behind the page's normal content. */
+   A negative z-index paints them behind the page's normal content.
+
+   Their height is 100lvh, the "large viewport": the window's height with a
+   phone browser's toolbar hidden. With inset: 0 (top and bottom pinned) they
+   would follow the toolbar instead, which on iPhone slides away just as you
+   start scrolling: the canvas would resize on every frame of that slide, and
+   each resize reallocates the WebGL drawing buffer and redraws the scene
+   mid-scroll, which shows as stutter. At a steady 100lvh nothing resizes;
+   the toolbar just covers the bottom edge while it's showing. (100vh first:
+   the fallback for browsers without lvh, where it means the same thing on
+   phones.) Learn more: https://web.dev/blog/viewport-units */
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100lvh;
   z-index: -2;
   background:
     radial-gradient(ellipse 80% 60% at 50% 30%, color-mix(in srgb, var(--space-nebula-1) 22%, transparent), transparent 70%),
@@ -373,10 +387,12 @@ body::before {
 }
 .space-canvas {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
   z-index: -1;
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  height: 100lvh;
   opacity: 0;
   transition: opacity 1.2s ease;
 }
