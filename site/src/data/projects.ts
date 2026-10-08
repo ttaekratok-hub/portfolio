@@ -126,4 +126,12 @@ export const PROJECTS: Project[] = [
     tech: ["Three.js", "WebGL", "GLSL shaders", "TypeScript"],
     links: [{ label: "Code", href: "https://github.com/ttaekratok-hub/portfolio/tree/main/site/src/space" }],
   },
+  {
+    title: "Reflection & Refraction Shader",
+    year: "OSU, CS 457",
+    summary: "Computer Graphics Shaders coursework: a GLSL shader that renders reflection and refraction in OpenGL.",
+    categories: ["techart"],
+    tech: ["GLSL", "OpenGL"],
+    links: [],
+  },
 ];
