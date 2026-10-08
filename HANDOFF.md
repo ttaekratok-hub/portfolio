@@ -25,7 +25,7 @@ down the Cloudflare tunnels and broke the owner's other services.
   Pi needs checking, give the owner read-only commands to run (see README
   "Day to day") instead.
 
-## Space theme: verified, awaiting PR (2026-10-08)
+## Space theme: verified and merged (2026-10-08)
 `space-theme`, `space-bg` and `space-map` are merged together on
 `claude/ecstatic-euler-5phb35`. The two unverified WIP commits were
 reviewed and kept, with fixes: two leftover debug globals removed (they kept
@@ -33,8 +33,8 @@ disposed scenes alive), the map redraws immediately on resize (no flicker),
 and the territory shader holds every claim (MAX_CLAIMS 88). An older phone
 bug was fixed too: About cards and their links pushed the page to 600px wide
 on a 390px phone. Lint, 79 tests, build and HTML validation pass; checked in
-headless Chromium at desktop and phone widths, light and dark mode, and with
-Reduce Motion, with no console errors. Next: open the PR into `main`.
+headless Chromium at desktop and phone widths and with Reduce Motion, with no
+console errors. Merged as PR #7.
 
 ## Where things are
 - Repo `ttaekratok-hub/portfolio`, default branch `main`. GitHub is the only
@@ -47,7 +47,8 @@ Reduce Motion, with no console errors. Next: open the PR into `main`.
   system colors (tokens.css, contrast-tested), SF via system font / Inter
   fallback, Liquid Glass only on floating controls (nav, pause button).
   Space theme with Three.js (site/src/space/): background scene and a galaxy
-  map of projects, loaded after hydration; daytime sky in light mode. Art section has
+  map of projects, loaded after hydration. The site is always dark (2026-10-08:
+  light mode and the daytime sky were removed). Art section has
   two "under construction" placeholders; the MikroTik-Lab GitHub repo is empty,
   so it isn't linked yet.
 - Pipeline (`.github/workflows/ci-cd.yml`): test → build → k8s-smoke-test

@@ -1,11 +1,10 @@
 // The space behind the whole page: one fixed, full-screen <canvas> drawn by
-// space/background.ts (starfield, galaxy, nebula; a soft daytime sky in light
-// mode). Content scrolls over it.
+// space/background.ts (starfield, galaxy, nebula). Content scrolls over it.
 //
 // Loading order, so the page appears fast:
 //   1. The pre-rendered HTML has an empty canvas; CSS paints a gradient
 //      behind it (body::before in global.css), so the page already looks
-//      like space or sky before any JavaScript.
+//      like space before any JavaScript.
 //   2. After hydration, when the browser is idle (requestIdleCallback), the
 //      scene module is fetched with a dynamic import(). Vite puts it, with
 //      Three.js, in a separate file, so the main bundle stays small.
@@ -21,10 +20,9 @@ import type { SceneOptions, SpaceScene } from "../space/types";
 
 /** The visitor's settings that every scene follows, as plain values. */
 export function useSceneOptions(): SceneOptions {
-  const dark = useMediaQuery("(prefers-color-scheme: dark)");
   const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const paused = usePaused();
-  return { scheme: dark ? "dark" : "light", reduceMotion, paused };
+  return { reduceMotion, paused };
 }
 
 /**
@@ -42,12 +40,12 @@ export function useSpaceScene(
   const optionsRef = useRef(options);
   const loadRef = useRef(load);
   const [ready, setReady] = useState(false);
-  const { scheme, reduceMotion, paused } = options;
+  const { reduceMotion, paused } = options;
 
   useEffect(() => {
-    optionsRef.current = { scheme, reduceMotion, paused };
+    optionsRef.current = { reduceMotion, paused };
     sceneRef.current?.update(optionsRef.current);
-  }, [scheme, reduceMotion, paused]);
+  }, [reduceMotion, paused]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

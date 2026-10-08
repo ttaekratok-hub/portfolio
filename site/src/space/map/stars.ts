@@ -5,17 +5,13 @@
 // The glow is "faked" in the fragment shader instead of with a bloom
 // post-processing pass (which blurs the whole frame several times, too slow
 // for phones): each sprite paints a sharp core plus wider, fainter Gaussian
-// rings around it. With additive blending (dark mode) overlapping glows add
-// up like real light.
-// By day the same sprites are painted over the sky as sunlit sparkles: a
-// white center, a ring of the empire's color, a pastel halo and a faint
-// four-pointed glint, like sunlight catching something shiny.
+// rings around it. With additive blending overlapping glows add up like real
+// light.
 import {
   AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
   Mesh,
-  NormalBlending,
   PlaneGeometry,
   Points,
   ShaderMaterial,
@@ -66,7 +62,6 @@ export function createStars(
       pixelRatio: shared.pixelRatio,
       referenceDepth: shared.referenceDepth,
       lit: shared.lit,
-      light: shared.light,
       colors: { value: Array.from({ length: MAX_SYSTEMS }, () => new Vector3()) },
       starColor: { value: new Vector3() },
       maxPointSize: { value: maxPointSize },
@@ -109,7 +104,6 @@ export function createStars(
       }
     `,
     fragmentShader: /* glsl */ `
-      uniform float light;
       varying vec3 vColor;
       varying float vLit;
       varying float vProject;
@@ -121,16 +115,7 @@ export function createStars(
         if (d > 1.0) discard;
         float aa = fwidth(d) * 1.2;
         if (vProject < 0.5) {
-          if (light > 0.5) {
-            // Unclaimed star by day: a white dot with a thin, soft outline in
-            // the arm color, so it shows on the pale sky without being a
-            // dark speck.
-            float dotIn = 1.0 - smoothstep(0.3 - aa, 0.3 + aa, d);
-            float outline = 1.0 - smoothstep(0.46 - aa, 0.46 + aa, d);
-            gl_FragColor = vec4(mix(vColor, vec3(1.0), dotIn), max(dotIn, outline * 0.4));
-            return;
-          }
-          // Unclaimed star by night: a small soft dot.
+          // Unclaimed star: a small soft dot.
           float glow = exp(-d * d * 7.0) * 0.6 + (1.0 - smoothstep(0.2 - aa, 0.2 + aa, d)) * 0.5;
           gl_FragColor = vec4(vColor, glow * 0.9);
           return;
@@ -139,42 +124,24 @@ export function createStars(
         float core = 1.0 - smoothstep(0.13 - aa, 0.13 + aa, d);
         float corona = exp(-d * d * 30.0);
         float halo = exp(-d * d * 4.5) * 0.55 * vBreath;
-        if (light > 0.5) {
-          // Daytime, painted over the sky (normal blending), back to front:
-          // a pastel halo (the empire color mixed with white), a faint
-          // white glint (two thin Gaussian streaks, across and up), a ring
-          // in the empire color, and a white center.
-          float white = 1.0 - smoothstep(0.1 - aa, 0.1 + aa, d);
-          float ring = 1.0 - smoothstep(0.18 - aa, 0.18 + aa, d);
-          float glint = (exp(-abs(p.y) * 22.0) + exp(-abs(p.x) * 22.0)) * (1.0 - smoothstep(0.05, 0.7, d)) * 0.9;
-          vec3 color = mix(vColor, vec3(1.0), 0.4);
-          float alpha = exp(-d * d * 5.0) * 0.75 * vBreath;
-          color = mix(color, vec3(1.0), glint);
-          alpha = max(alpha, glint);
-          color = mix(color, vColor, ring);
-          alpha = max(alpha, ring);
-          color = mix(color, vec3(1.0), white);
-          gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0) * dim);
-        } else {
-          // Night: a white-hot core in a colored corona and halo, added as light.
-          vec3 color = vColor * (corona * 1.1 + halo) + vec3(core);
-          gl_FragColor = vec4(color * dim, 1.0);
-        }
+        // A white-hot core in a colored corona and halo, added as light.
+        vec3 color = vColor * (corona * 1.1 + halo) + vec3(core);
+        gl_FragColor = vec4(color * dim, 1.0);
       }
     `,
     transparent: true,
     depthTest: false,
     depthWrite: false,
+    blending: AdditiveBlending, // glowing things on black: colors add up like light
   });
   const points = new Points(geometry, material);
   points.renderOrder = 6;
   return {
     object: points,
-    setPalette(palette, light) {
+    setPalette(palette) {
       const colors = material.uniforms.colors!.value as Vector3[];
       systems.forEach((s, i) => colors[i]!.copy(srgb(palette.categories[s.category] ?? palette.star)));
-      material.uniforms.starColor!.value.copy(srgb(light ? palette.arm : palette.star));
-      material.blending = light ? NormalBlending : AdditiveBlending;
+      material.uniforms.starColor!.value.copy(srgb(palette.star));
     },
     dispose() {
       geometry.dispose();
@@ -198,7 +165,6 @@ export function createSelectionRing(shared: SharedUniforms): SelectionRing {
   const material = new ShaderMaterial({
     uniforms: {
       time: shared.time,
-      light: shared.light,
       color: { value: new Vector3(1, 1, 1) },
       appear: { value: 0 },
     },
@@ -211,7 +177,6 @@ export function createSelectionRing(shared: SharedUniforms): SelectionRing {
     `,
     fragmentShader: /* glsl */ `
       uniform float time;
-      uniform float light;
       uniform vec3 color;
       uniform float appear;
       varying vec2 vUv;
@@ -227,12 +192,13 @@ export function createSelectionRing(shared: SharedUniforms): SelectionRing {
         float wave = fract(time * 0.4);
         float waveRing = (1.0 - smoothstep(0.0, 0.02 + aa, abs(r - (0.5 + wave * 0.45)))) * (1.0 - wave);
         float alpha = (ring + waveRing * 0.55) * appear;
-        gl_FragColor = light > 0.5 ? vec4(color, alpha) : vec4(color * alpha, 1.0);
+        gl_FragColor = vec4(color * alpha, 1.0);
       }
     `,
     transparent: true,
     depthTest: false,
     depthWrite: false,
+    blending: AdditiveBlending,
   });
   const geometry = new PlaneGeometry(2, 2);
   geometry.rotateX(-Math.PI / 2);
@@ -253,9 +219,7 @@ export function createSelectionRing(shared: SharedUniforms): SelectionRing {
       material.uniforms.appear!.value = value;
       mesh.visible = active && value > 0;
     },
-    setPalette(_palette, light) {
-      material.blending = light ? NormalBlending : AdditiveBlending;
-    },
+    setPalette() {},
     dispose() {
       geometry.dispose();
       material.dispose();

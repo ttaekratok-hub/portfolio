@@ -90,9 +90,11 @@ export function createTerritory(
       empireOf: { value: empireOf },
       count: { value: held.length },
       empires: { value: CATEGORY_ORDER.map(() => new Vector3()) },
+      // The fill is a whisper; the border and the band inside it carry the
+      // shape.
       fill: { value: 0.1 },
       band: { value: 0.3 },
-      edge: { value: 0.8 },
+      edge: { value: 0.85 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vPos;
@@ -191,15 +193,9 @@ export function createTerritory(
   mesh.renderOrder = 3;
   return {
     object: mesh,
-    setPalette(palette, light) {
-      const u = material.uniforms;
-      const empires = u.empires!.value as Vector3[];
+    setPalette(palette) {
+      const empires = material.uniforms.empires!.value as Vector3[];
       CATEGORY_ORDER.forEach((category: Category, e) => empires[e]!.copy(srgb(palette.categories[category] ?? "#888")));
-      // The fill is a whisper; the border and the band inside it carry the
-      // shape. Fainter by day, so the sky still shows through.
-      u.fill!.value = light ? 0.07 : 0.1;
-      u.band!.value = light ? 0.2 : 0.3;
-      u.edge!.value = light ? 0.75 : 0.85;
     },
     dispose() {
       geometry.dispose();

@@ -10,13 +10,10 @@
 //   3. bulge: the bright, round heart of the galaxy. A "billboard": a square
 //      that always faces the camera, painted with a soft radial glow.
 //
-// In dark mode everything uses additive blending: each layer's color is added
-// to what's already on screen, the way light adds up, so overlapping stars get
-// brighter and never darker. That is how the glow is faked without any
-// post-processing. In light mode the galaxy is a pale "daytime ghost", like
-// the Moon in a blue sky: normal (alpha) blending, low opacity, cool lavender
-// colors (background.ts picks them), its arms carrying the shape and its core
-// held back, so it reads as a spiral rather than a bright smudge.
+// Everything uses additive blending: each layer's color is added to what's
+// already on screen, the way light adds up, so overlapping stars get brighter
+// and never darker. That is how the glow is faked without any
+// post-processing.
 // Learn more: https://threejs.org/docs/#api/en/constants/Materials (blending)
 import {
   AdditiveBlending,
@@ -28,7 +25,6 @@ import {
   PlaneGeometry,
   Points,
   ShaderMaterial,
-  type Blending,
 } from "three";
 import type { GalaxyOptions, GalaxyPoints } from "../galaxy";
 import { HASH_GLSL, NOISE_GLSL, ZONES_GLSL } from "./glsl";
@@ -44,8 +40,6 @@ uniform float uRefDepth;  // ...at this distance from the camera
 uniform float uIntensity; // overall brightness (fades out as the page scrolls)
 uniform float uTextKeep;  // share of the stars kept behind text (see below)
 uniform float uTextLight; // and how bright those few stay
-uniform float uDay;
-uniform float uPastel;    // light mode: how far colors are mixed toward white
 uniform vec3 uCore;
 uniform vec3 uArm;
 uniform vec3 uPink;
@@ -114,7 +108,7 @@ void main() {
   // stars, many faint ones look like dust.
   alpha *= mix(uTextLight, 1.0, open) * step(r4, mix(uTextKeep, 1.0, open));
 
-  vColor = mix(color, vec3(1.0), uPastel * uDay);
+  vColor = color;
   vAlpha = alpha * uIntensity;
 }
 `;
@@ -151,8 +145,6 @@ uniform float uSpin;
 uniform float uScatter;
 uniform float uIntensity;
 uniform float uTextDim;
-uniform float uDay;
-uniform float uPastel;
 uniform vec3 uCore;
 uniform vec3 uArm;
 uniform vec3 uPink;
@@ -207,18 +199,7 @@ void main() {
   float textDim = mix(uTextDim, 0.8, smoothstep(0.12, 0.45, r));
   float strength = uIntensity * mix(textDim, 1.0, openness(cssPixel));
 
-  if (uDay < 0.5) {
-    gl_FragColor = vec4(color * density * strength, 1.0); // added to the sky
-  } else {
-    // By day the color is laid over the sky with an opacity (alpha), so
-    // the opacity alone draws the shape. The arms carry it; the core, which
-    // has most of the density, is capped at a quarter, so the ghost reads
-    // as a spiral and not as a blot under the buttons.
-    float arms = arm * (0.2 + 1.6 * clumps * clumps) * (1.0 - 0.5 * lane) * rim * smoothstep(0.04, 0.22, r);
-    float core = min(0.25, 0.6 * exp(-r * r / 0.02));
-    float opacity = (0.7 * arms + core) * strength;
-    gl_FragColor = vec4(mix(color, vec3(1.0), uPastel), min(0.6, opacity));
-  }
+  gl_FragColor = vec4(color * density * strength, 1.0); // added to the sky
 }
 `;
 
@@ -239,8 +220,6 @@ void main() {
 const BULGE_FRAGMENT = /* glsl */ `
 uniform float uIntensity;
 uniform float uTextDim;
-uniform float uDay;
-uniform float uPastel;
 uniform vec3 uCore;
 uniform vec2 uViewport;
 uniform vec2 uSoftSize;
@@ -256,17 +235,11 @@ void main() {
   // would be clipped into a flat white patch.
   float glow = 0.6 * exp(-d2 * 90.0) + 0.2 * exp(-d2 * 12.0) + 0.07 * exp(-d2 * 3.5);
   glow *= 1.0 - smoothstep(0.6, 1.0, sqrt(d2)); // fade out before the square's edge
-  // White-hot in the middle (plain white by day), the core color further out.
-  vec3 hot = mix(vec3(1.0, 0.96, 0.88), vec3(1.0), uDay);
-  vec3 color = mix(hot, uCore, smoothstep(0.0, 0.3, sqrt(d2)));
+  // White-hot in the middle, the core color further out.
+  vec3 color = mix(vec3(1.0, 0.96, 0.88), uCore, smoothstep(0.0, 0.3, sqrt(d2)));
   vec2 cssPixel = vec2(gl_FragCoord.x, uSoftSize.y - gl_FragCoord.y) / uSoftSize * uViewport;
   float strength = uIntensity * mix(uTextDim, 1.0, openness(cssPixel));
-  if (uDay < 0.5) {
-    gl_FragColor = vec4(color * glow * strength, 1.0);
-  } else {
-    // By day: a soft pale glow, never more than a quarter opaque.
-    gl_FragColor = vec4(mix(color, vec3(1.0), uPastel), min(0.25, 1.4 * glow * strength));
-  }
+  gl_FragColor = vec4(color * glow * strength, 1.0);
 }
 `;
 
@@ -278,7 +251,6 @@ export function createGalaxyLayers(shared: SharedUniforms, galaxy: GalaxyPoints,
     uArm: { value: new Color() },
     uPink: { value: new Color() },
   };
-  const uPastel = { value: 0.4 };
   // How much of the glow's brightness is kept where text may be.
   const glowDim = { value: 0.3 };
 
@@ -293,7 +265,6 @@ export function createGalaxyLayers(shared: SharedUniforms, galaxy: GalaxyPoints,
     uniforms: {
       ...shared,
       ...colors,
-      uPastel,
       uSize: { value: 1.6 },
       uRefDepth: { value: 30 },
       uIntensity: { value: 1 },
@@ -319,7 +290,6 @@ export function createGalaxyLayers(shared: SharedUniforms, galaxy: GalaxyPoints,
     uniforms: {
       ...shared,
       ...colors,
-      uPastel,
       uTextDim: glowDim,
       uRadius: { value: options.radius },
       uArms: { value: options.arms },
@@ -342,7 +312,6 @@ export function createGalaxyLayers(shared: SharedUniforms, galaxy: GalaxyPoints,
     uniforms: {
       ...shared,
       uCore: colors.uCore,
-      uPastel,
       uTextDim: glowDim,
       uSize: { value: 1 },
       uIntensity: { value: 1 },
@@ -380,12 +349,6 @@ export function createGalaxyLayers(shared: SharedUniforms, galaxy: GalaxyPoints,
       discIntensity: discMaterial.uniforms.uIntensity!,
       bulgeIntensity: bulgeMaterial.uniforms.uIntensity!,
       bulgeSize: bulgeMaterial.uniforms.uSize!,
-      pastel: uPastel,
-    },
-    setBlending(blending: Blending) {
-      // Blending is part of the GPU's state for each draw, not of the
-      // compiled shader, so switching it costs nothing.
-      for (const material of materials) material.blending = blending;
     },
     dispose() {
       starGeometry.dispose();

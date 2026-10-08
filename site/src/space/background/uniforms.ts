@@ -27,8 +27,6 @@ export function createSharedUniforms() {
     uScroll: { value: 0 },
     /** The mouse, -1..1 across the window, eased (0 without a mouse). */
     uMouse: { value: new Vector2() },
-    /** 0 in dark mode (space), 1 in light mode (daytime sky). */
-    uDay: { value: 0 },
     /** 1 when the visitor asked for more contrast (prefers-contrast: more). */
     uMoreContrast: { value: 0 },
     // The legibility zones (glsl.ts, ZONES_GLSL), as left, top, right, bottom.

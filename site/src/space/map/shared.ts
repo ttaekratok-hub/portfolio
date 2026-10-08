@@ -28,8 +28,6 @@ export interface SharedUniforms {
   referenceDepth: { value: number };
   /** Per project system, 1 = matches the filter, 0 = dimmed (in between while fading). */
   lit: { value: number[] };
-  /** 1 in light mode (daytime sky), 0 in dark mode. Shaders mix their two looks with it. */
-  light: { value: number };
 }
 
 export function createSharedUniforms(): SharedUniforms {
@@ -39,7 +37,6 @@ export function createSharedUniforms(): SharedUniforms {
     resolution: { value: new Vector2(1, 1) },
     referenceDepth: { value: 20 },
     lit: { value: new Array<number>(MAX_SYSTEMS).fill(1) },
-    light: { value: 0 },
   };
 }
 
@@ -62,8 +59,8 @@ export function srgb(css: string): Vector3 {
 /** One visual layer of the map: a Three.js object plus how to recolor and free it. */
 export interface Layer {
   object: Object3D;
-  /** Called on start and whenever light/dark mode changes. */
-  setPalette(palette: SpacePalette, light: boolean): void;
+  /** Called once on start, with the colors from tokens.css. */
+  setPalette(palette: SpacePalette): void;
   dispose(): void;
 }
 
