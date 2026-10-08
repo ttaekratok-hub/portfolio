@@ -42,8 +42,8 @@ in a headless browser in the cloud session (desktop + mobile width, light
 and dark mode, `prefers-reduced-motion`).
 
 ## Where things are
-- Repo `ttaekratok-hub/portfolio`, default branch `main`. The Pi still has
-  an old clone at `~/Desktop/ttaekratok_website`; don't develop there.
+- Repo `ttaekratok-hub/portfolio`, default branch `main`. GitHub is the only
+  copy: the Pi has no clone, and its write deploy key was removed (2026-10-08).
 - `site/`: React + TypeScript (Vite), pre-rendered to static HTML at build
   time (scripts/prerender.mjs) so crawlers/web filters see real content.
   Content lives in `site/src/data/` (profile.ts, projects.ts). Apple HIG design:
