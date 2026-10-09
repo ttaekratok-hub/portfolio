@@ -32,6 +32,17 @@ export const PROFILE = {
   github: "https://github.com/ttaekratok-hub",
 } as const;
 
+// The "At a glance" card beside the About text: the facts a recruiter scans
+// for, shortened from the fields above. `icon` picks a drawing in About.tsx.
+export type GlanceIcon = "pin" | "plane" | "id" | "briefcase" | "cap";
+export const GLANCE: ReadonlyArray<{ icon: GlanceIcon; label: string; value: string }> = [
+  { icon: "pin", label: "Based in", value: PROFILE.location },
+  { icon: "plane", label: "Relocation", value: "Open to anywhere in the U.S." },
+  { icon: "id", label: "Work status", value: "U.S. citizen, no sponsorship needed, clearance-eligible" },
+  { icon: "briefcase", label: "Now", value: "Business Analyst at Western Digital" },
+  { icon: "cap", label: "Degree", value: "B.S. Computer Science, Oregon State, Summa Cum Laude" },
+];
+
 // ReadonlyArray<{ ... }>: an array of objects with exactly these fields, which
 // other code may read but not modify (TypeScript rejects push() or replacing an
 // item; like all types, it's a compile-time check). `?` marks optional fields.
