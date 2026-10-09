@@ -1,0 +1,122 @@
+# The site's Deployment: "keep 2 copies of this container running, and replace
+# them gradually whenever the pod template changes".
+#
+# Kubernetes is declarative: you describe the state you want, and controllers
+# (programs inside the cluster) keep working to make it true. A Deployment
+# manages ReplicaSets, one per version of the pod template, and a ReplicaSet
+# keeps the requested number of Pods running. A Pod is one or more containers
+# scheduled together; here, a single nginx container built by the Dockerfile.
+#
+# This file is part of the kustomize "base" (k8s/base/kustomization.yaml):
+# k8s/overlays/pi adapts it for the Pi, and the namespace's rules in
+# k8s/tenant/ decide which settings it must have.
+#
+# Try it (on the Pi):
+#   kubectl -n portfolio get deployment,replicaset,pods   the three layers
+#   kubectl -n portfolio rollout history deployment/portfolio
+# Learn more: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portfolio
+  namespace: portfolio
+  labels:
+    app: portfolio
+spec:
+  # Two pods, so one can restart, or be replaced during an update, while the
+  # other keeps serving. On a one-machine cluster this guards against a crashed
+  # pod, not against the machine going down.
+  replicas: 2
+  # Keep the 5 newest old ReplicaSets (scaled to zero) as rollback points for
+  # `kubectl rollout undo`. On the Pi, Flux re-applies git soon after, so roll
+  # back through git instead (the README explains how).
+  revisionHistoryLimit: 5
+  # Which pods belong to this Deployment: the ones labeled app=portfolio. It has
+  # to match the template's labels below and can't be changed after creation.
+  selector:
+    matchLabels:
+      app: portfolio
+  # Rolling update: maxSurge 1 starts one extra pod with the new version, and
+  # maxUnavailable 0 removes an old pod only once a new one is Ready. Capacity
+  # never drops below 2 pods, so a deploy causes no downtime. That means 3 pods
+  # at the peak, which the quota in k8s/tenant/namespace.yaml allows.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  # The pod template: the blueprint for every pod. Any change in here (a new
+  # image tag, for example) creates a new ReplicaSet, and that starts a rollout.
+  template:
+    metadata:
+      labels:
+        app: portfolio
+    spec:
+      # Pod-level security settings. The namespace enforces the "restricted"
+      # Pod Security level (k8s/tenant/namespace.yaml), which rejects pods
+      # without them.
+      # runAsNonRoot: the kubelet (the agent on each node that starts
+      #   containers) refuses to start one whose user is root. The Dockerfile
+      #   sets UID 101.
+      # seccompProfile RuntimeDefault: the container runtime's default seccomp
+      #   filter, which blocks Linux system calls ordinary programs never need.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          # On the deploy branch, CI pins this to the tested commit's SHA.
+          # `latest` is only a placeholder: a tag that moves doesn't say which
+          # build is running, while a commit SHA always means the same image.
+          image: ghcr.io/ttaekratok-hub/portfolio:latest
+          # A named port: the probes below and the Service (service.yaml) refer
+          # to "http", so they don't repeat the number 8080.
+          ports:
+            - name: http
+              containerPort: 8080
+          # Readiness: "may this pod receive traffic?" The Service sends
+          # requests only to Ready pods, and a rolling update waits for each new
+          # pod to become Ready before it removes an old one.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          # Liveness: "is this container still working?" After 3 failed checks
+          # in a row (the default failureThreshold), the kubelet restarts it.
+          # /healthz is answered by nginx itself (see nginx.conf).
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          # requests: what the scheduler sets aside for the container when it
+          #   picks a node (10m = 10 millicores, 1% of one CPU core; Mi =
+          #   mebibytes).
+          # limits: a hard cap. A container that uses more memory than its
+          #   limit is killed ("OOMKilled") and restarted. CPU is different: a
+          #   container over a CPU limit is only slowed down (throttled). There
+          #   is no CPU limit here, so nginx may use idle CPU beyond its request.
+          # The namespace's ResourceQuota (k8s/tenant/namespace.yaml) makes
+          # these fields mandatory.
+          # Learn more:
+          #   https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          # Container-level settings, also required by "restricted":
+          # allowPrivilegeEscalation false: no process in the container can gain
+          #   more privileges than it started with (say, through a setuid
+          #   program like sudo).
+          # capabilities drop ALL: Linux splits root's powers into pieces called
+          #   capabilities (changing file owners, opening ports below 1024...).
+          #   nginx on port 8080 needs none of them.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

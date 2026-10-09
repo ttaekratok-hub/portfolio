@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# One-time cluster setup on the Pi, applied by hand with admin rights:
+#   kubectl apply -k k8s/flux
+# Flux does not manage these files, so re-apply after editing them.
+#
+# Why by hand: these files decide what Flux is allowed to do (its limited
+# account, the namespace's rules) and which branch it deploys. If Flux applied
+# them from git, a commit could widen its own permissions. Keeping them out of
+# the deploy path is the trust boundary the README describes.
+#
+# Two different things are called Kustomization. This file
+# (kustomize.config.k8s.io) is a build file for the kustomize tool and never
+# reaches the cluster. The one in portfolio.yaml (kustomize.toolkit.fluxcd.io)
+# is a Flux object that lives in the cluster and tells Flux what to apply.
+resources:
+  - ../tenant
+  - portfolio.yaml

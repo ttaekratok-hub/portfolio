@@ -1,0 +1,21 @@
+# ServiceLB is disabled on the Pi's k3s, so expose the Service as a NodePort
+# (allowed range 30000-32767). cloudflared runs in Docker on a bridge network,
+# where "localhost" is the container itself, so the tunnel reaches this port
+# through the Pi's LAN IP instead.
+#
+# A NodePort Service keeps everything a ClusterIP one does, and also listens
+# on that port on every node's own IP: that's the door from outside the
+# cluster. Fixing the number, instead of letting Kubernetes pick a random free
+# one, keeps the tunnel's target stable. The namespace's quota allows exactly
+# one NodePort (k8s/tenant/namespace.yaml).
+#
+# This is a JSON patch (RFC 6902). Each item is one operation, and `path` is a
+# JSON Pointer into the Service: /spec/ports/0 means the first entry of
+# spec.ports. `replace` changes a field that already exists (the base sets
+# type: ClusterIP); `add` creates one.
+- op: replace
+  path: /spec/type
+  value: NodePort
+- op: add
+  path: /spec/ports/0/nodePort
+  value: 30738

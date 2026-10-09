@@ -1,0 +1,20 @@
+# kustomize, built into kubectl, reuses Kubernetes YAML without templates. This
+# folder is the "base": plain manifests that are the same everywhere. An
+# "overlay" (k8s/overlays/pi) lists the base as a resource and layers its own
+# changes on top (patches, image tags), without copying or editing these files.
+#
+# This Kustomization is a build file for the kustomize tool: it says which files
+# to combine, and is never sent to the cluster itself. (Flux's Kustomization in
+# k8s/flux/portfolio.yaml is a different thing with the same name.)
+#
+# Try it:
+#   kubectl kustomize k8s/base     prints the combined YAML, changing nothing
+#   diff <(kubectl kustomize k8s/base) <(kubectl kustomize k8s/overlays/pi)
+# Learn more: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+

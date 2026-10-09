@@ -1,0 +1,27 @@
+# A Service gives the site's pods one stable address. Pods come and go (every
+# rollout replaces them, each with a new IP), but the Service keeps one virtual
+# IP and DNS name (portfolio.portfolio.svc.cluster.local) and spreads requests
+# over the pods that match its selector and are Ready.
+#
+# ClusterIP, the default type, is reachable only from inside the cluster. The
+# Pi overlay turns it into a NodePort so the tunnel can reach it from outside
+# (k8s/overlays/pi/service-patch.yaml).
+#
+# Try it: kubectl -n portfolio get endpointslices   (the pod IPs behind it)
+# Learn more: https://kubernetes.io/docs/concepts/services-networking/service/
+apiVersion: v1
+kind: Service
+metadata:
+  name: portfolio
+  namespace: portfolio
+spec:
+  type: ClusterIP
+  # Send traffic to every pod labeled app=portfolio (the Deployment's pods).
+  selector:
+    app: portfolio
+  # Clients connect to port 80 on the Service, which forwards to the
+  # container's port named "http" (8080, see deployment.yaml).
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

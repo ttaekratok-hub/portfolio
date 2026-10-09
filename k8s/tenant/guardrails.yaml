@@ -1,0 +1,92 @@
+# RBAC limits which objects can be changed; these limit where traffic goes.
+#
+# 1) The site's pods may receive requests on 8080 but can't open any
+#    connection of their own (a static site never needs to), so a bad image
+#    can't talk to the mail server or anything else on the network.
+#
+#    A NetworkPolicy is a firewall for pods that selects them by label instead
+#    of by IP address. `podSelector: {}` selects every pod in the namespace.
+#    Listing both policyTypes makes it deny-by-default in both directions: only
+#    what the rules list is allowed. The ingress rule names no source, so any
+#    client may connect, but only to TCP port 8080. The empty egress list allows
+#    nothing at all, not even DNS lookups.
+#    The cluster's network plugin enforces this (k3s has a built-in network
+#    policy controller); on a cluster without one, a NetworkPolicy has no effect.
+#    Try it: kubectl -n portfolio exec deploy/portfolio -- wget -T 3 -qO- http://example.com
+#      fails, because the pod has no way out.
+#    Learn more: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: portfolio-guard
+  namespace: portfolio
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - ports:
+        - port: 8080
+          protocol: TCP
+  egress: []
+---
+# 2) Services in this namespace must be plain ClusterIP/NodePort ones. No
+#    externalIPs (they can capture traffic meant for other addresses, even
+#    the Pi's own), no LoadBalancer/ExternalName, no Tailscale exposure.
+#
+#    Admission control: after RBAC has allowed a request, and before it is
+#    saved, the API server runs admission checks that can still reject it. A
+#    ValidatingAdmissionPolicy (stable since Kubernetes 1.30) is such a check,
+#    written in CEL (Common Expression Language) and evaluated by the API
+#    server itself, so there's no separate webhook server to run.
+#    Each `expression` must be true or the request is rejected with `message`.
+#    `object` is the Service being created or updated, and `has()` tests
+#    whether a field is set at all. The externalIPs hole is a known Kubernetes
+#    issue (CVE-2020-8554). The Tailscale operator, if installed, acts on
+#    tailscale.com/ annotations and labels, e.g. to publish a Service on the
+#    Tailscale network.
+#    failurePolicy: Fail means that if the check itself can't run, the request
+#    is rejected rather than let through ("fail closed").
+#    The policy is cluster-wide and does nothing alone: the binding below says
+#    where it applies and what to do when an expression is false.
+#    Learn more:
+#      https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: portfolio-services
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["services"]
+  validations:
+    - expression: "!has(object.spec.type) || object.spec.type in ['ClusterIP', 'NodePort']"
+      message: "portfolio Services must be ClusterIP or NodePort"
+    - expression: "!has(object.spec.externalIPs) || size(object.spec.externalIPs) == 0"
+      message: "externalIPs are not allowed in portfolio"
+    - expression: >-
+        (!has(object.metadata.annotations) || !object.metadata.annotations.exists(k, k.startsWith('tailscale.com/'))) &&
+        (!has(object.metadata.labels) || !object.metadata.labels.exists(k, k.startsWith('tailscale.com/')))
+      message: "Tailscale annotations/labels are not allowed in portfolio"
+---
+# Applies the policy above to the portfolio namespace only. Kubernetes labels
+# every namespace with its own name (kubernetes.io/metadata.name), which makes
+# it easy to select. validationActions: Deny rejects the request; Warn and Audit
+# would only report, which is handy while trying out a new rule.
+# Try it: kubectl -n portfolio create service externalname test \
+#           --external-name example.com --dry-run=server
+#   is refused with "portfolio Services must be ClusterIP or NodePort".
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: portfolio-services
+spec:
+  policyName: portfolio-services
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: portfolio
