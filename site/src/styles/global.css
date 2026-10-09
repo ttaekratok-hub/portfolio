@@ -839,18 +839,85 @@ body::before {
 
 /* ---------- Inset grouped lists (iOS Settings style) ---------- */
 
+/* The About text and the "At a glance" card (About.tsx). One column on
+   phones and tablets, with the card under the text; side by side from 900px.
+   minmax(0, 1fr) lets the text column shrink (a plain 1fr won't shrink below
+   its longest word); the card keeps 300px. align-items: start keeps the card
+   its own height instead of stretching to the text's. */
+.about-intro {
+  display: grid;
+  gap: var(--space-8) var(--space-12);
+  align-items: start;
+  margin: var(--space-4) 0 var(--space-8);
+}
+@media (min-width: 900px) {
+  .about-intro {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+
 /* p + p ("adjacent sibling"): every paragraph after the first is secondary. */
 .about-text {
   display: grid;
   gap: var(--space-4);
   max-width: 760px;
-  margin: var(--space-4) 0 var(--space-8);
   font-size: var(--text-title3);
   line-height: 1.5;
   letter-spacing: -0.012em;
 }
 .about-text p + p {
   color: var(--label-secondary);
+}
+
+.glance {
+  gap: var(--space-5);
+  padding: var(--space-6);
+}
+.glance-title {
+  font-size: var(--text-headline);
+  line-height: var(--leading-headline);
+  font-weight: 600;
+}
+/* auto-fill: as many 220px+ columns as fit. That's one inside the 300px card,
+   and two or three when the card spans the page below 900px. */
+.glance-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  gap: var(--space-4) var(--space-6);
+  margin: 0;
+}
+.glance-row dt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--label-secondary);
+  font-size: var(--text-footnote);
+  line-height: var(--leading-footnote);
+}
+/* The value lines up with the label text, past the 20px icon and 8px gap. */
+.glance-row dd {
+  margin: 2px 0 0 28px;
+  font-size: var(--text-subhead);
+  line-height: var(--leading-subhead);
+}
+.glance-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--tint);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.glance-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target);
+  margin-bottom: calc(-1 * var(--space-3));
+  font-size: var(--text-subhead);
+  font-weight: 600;
 }
 
 /* Rows grouped in one rounded box: the timeline (About.tsx) and the contact

@@ -1,10 +1,38 @@
 // The About and Skills sections. Both just turn data from data/profile.ts into
 // markup: edit the arrays there and these sections follow.
 //
-// About has three sub-sections (Experience, Education, Certifications) under
+// About opens with the text and an "At a glance" card side by side, then has
+// three sub-sections (Experience, Education, Certifications). All four use
 // <h3> headings, so the page outline stays h1 > h2 > h3 for screen readers.
-import { CERTIFICATIONS, EDUCATION, EXPERIENCE, PROFILE, SKILLS } from "../data/profile";
+import type { ReactNode } from "react";
+import { CERTIFICATIONS, EDUCATION, EXPERIENCE, GLANCE, PROFILE, SKILLS, type GlanceIcon } from "../data/profile";
 import { Row } from "./Lists";
+
+// The line drawings for the "At a glance" rows, on a 24 x 24 grid. The stroke
+// color, width and line caps come from .glance-icon in global.css.
+const ICONS: Record<GlanceIcon, ReactNode> = {
+  pin: (
+    <>
+      <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </>
+  ),
+  plane: <path d="M21 3 3 10.5l7.5 3L14 21zM10.5 13.5 15 9" />,
+  id: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <circle cx="9" cy="11" r="2" />
+      <path d="M5.5 16.5c.7-1.3 1.9-2 3.5-2s2.8.7 3.5 2M15 10h3.5M15 13.5h2.5" />
+    </>
+  ),
+  briefcase: (
+    <>
+      <rect x="3" y="7" width="18" height="13" rx="2.5" />
+      <path d="M8.5 7V5.5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2V7M3 13h18" />
+    </>
+  ),
+  cap: <path d="m2 9.5 10-5 10 5-10 5zM6 11.5v4.5c0 1.6 2.7 3 6 3s6-1.4 6-3v-4.5M22 9.5V15" />,
+};
 
 export function About() {
   return (
@@ -18,10 +46,38 @@ export function About() {
           needs a `key` that's unique among siblings to match items between
           renders; each paragraph's text is unique, so it serves as the key.
           Learn more: https://react.dev/learn/rendering-lists */}
-      <div className="about-text">
-        {PROFILE.about.map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
-        ))}
+      <div className="about-intro">
+        <div className="about-text">
+          {PROFILE.about.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </div>
+
+        {/* A description list (<dl>): each <dt> is a label, the <dd> after it
+            its value. A <div> may wrap each pair, which lets CSS lay a pair
+            out as one row. The icons are decoration (aria-hidden): the label
+            already says the same in words. */}
+        <aside className="card glance" aria-labelledby="glance-title">
+          <h3 className="glance-title" id="glance-title">
+            At a glance
+          </h3>
+          <dl className="glance-list">
+            {GLANCE.map(({ icon, label, value }) => (
+              <div className="glance-row" key={label}>
+                <dt>
+                  <svg className="glance-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    {ICONS[icon]}
+                  </svg>
+                  {label}
+                </dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <a className="glance-link" href="/resume.pdf">
+            Download résumé (PDF)
+          </a>
+        </aside>
       </div>
 
       <h3 className="subsection-title">Experience</h3>
