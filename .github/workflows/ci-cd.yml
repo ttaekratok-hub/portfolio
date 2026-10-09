@@ -125,6 +125,11 @@ jobs:
             done
           done
           curl -fsS localhost:8080/.well-known/security.txt | grep -q "^Contact:"
+          # Files whose names stay the same across deploys must be revalidated,
+          # or Cloudflare and browsers keep showing the old ones.
+          for path in /favicon.svg /favicon.ico /apple-touch-icon.png /resume.pdf; do
+            curl -fsSI "localhost:8080$path" | grep -qi "^cache-control: no-cache" || { echo "$path may be cached stale"; exit 1; }
+          done
           # A visit Cloudflare received over plain http:// is sent to https://.
           curl -sSI -H "Host: ttaekratok.com" -H "X-Forwarded-Proto: http" localhost:8080/about | grep -qi "^location: https://ttaekratok.com/about" \
             || { echo "http:// is not redirected to https://"; exit 1; }
